@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable IDs for the Spatial SDK panel registrations (see QuestSproutActivity). -->
+    <item name="panel_hud" type="id" />
+    <item name="panel_manage" type="id" />
+    <item name="panel_tripwire" type="id" />
+    <item name="panel_hud_vertical" type="id" />
+    <item name="panel_viewfinder" type="id" />
+</resources>

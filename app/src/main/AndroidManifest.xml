@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Tray scanning uses the Quest 3 passthrough cameras via Camera2. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera2.any" android:required="true" />
+
+    <!-- Hand tracking: hand ray + pinch-to-click on both panels.
+         required=false keeps controllers working (controllers-and-hands). -->
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+    <!-- Newer Horizon OS name for the same capability (like HEADSET_CAMERA
+         next to CAMERA above) — declare both, request both, honored either. -->
+    <uses-permission android:name="horizonos.permission.HAND_TRACKING" />
+    <uses-feature android:name="oculus.software.handtracking" android:required="false" />
+
+    <!-- Store release requirements (Developer Dashboard channel checks). -->
+    <!-- Spatial SDK renders with Vulkan: declare the floor version
+         (0x400003 = Vulkan 1.0.3, the long-standing Quest value). -->
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
+    <!-- 6DoF head tracking is mandatory for immersive (VR) apps. -->
+    <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="true" />
+
+    <!-- Passthrough: WITHOUT this flag the XR_FB_passthrough extension never
+         enables and scene.enablePassthrough() silently leaves a black void. -->
+    <uses-feature android:name="com.oculus.feature.PASSTHROUGH" android:required="false" />
+
+    <!-- Gemini API plant analysis -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".SproutVisionApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SproutVision">
+
+        <!-- Focus awareness (VRC.Quest.Input.4): keep rendering when a system
+             overlay takes input focus. Entry exactly per Meta's native docs. -->
+        <meta-data
+            android:name="com.oculus.vr.focusaware"
+            android:value="true" />
+
+        <!-- Immersive passthrough activity: the grow dashboard floats over the rack. -->
+        <activity
+            android:name=".QuestSproutActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+            <meta-data
+                android:name="com.oculus.supportedDevices"
+                android:value="quest3|quest3s" />
+        </activity>
+
+        <!-- Scan-card sharing (cacheDir/share PNGs via ACTION_SEND). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepaths" />
+        </provider>
+    </application>
+</manifest>

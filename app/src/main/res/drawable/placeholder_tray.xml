@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder "photo" shown in demo mode scan screen. Must stay a
+     VectorDrawable: Compose painterResource() only supports vectors and
+     raster assets (a <shape> here crashed the app on toll-free scan open). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="640dp"
+    android:height="440dp"
+    android:viewportWidth="640"
+    android:viewportHeight="440">
+
+    <!-- soil bed -->
+    <path
+        android:fillColor="#3E2723"
+        android:pathData="M0,0h640v440h-640z" />
+
+    <!-- tray cells -->
+    <path
+        android:fillColor="#4E342E"
+        android:pathData="M20,20h600v180h-600z" />
+    <path
+        android:fillColor="#4E342E"
+        android:pathData="M20,240h600v180h-600z" />
+
+    <!-- sprout row 1 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M120,185v-44" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M120,157q-36,-2 -46,-36q34,0 46,36z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M120,157q36,-2 46,-36q-34,0 -46,36z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M265,185v-56" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M265,150q-40,-2 -50,-40q38,0 50,40z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M265,150q40,-2 50,-40q-38,0 -50,40z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M410,185v-48" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M410,152q-36,-2 -46,-36q34,0 46,36z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M410,152q36,-2 46,-36q-34,0 -46,36z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M545,185v-62" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M545,144q-40,-2 -50,-40q38,0 50,40z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M545,144q40,-2 50,-40q-38,0 -50,40z" />
+
+    <!-- sprout row 2 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M190,405v-50" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M190,372q-38,-2 -48,-38q36,0 48,38z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M190,372q38,-2 48,-38q-36,0 -48,38z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M320,405v-58" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M320,366q-40,-2 -50,-40q38,0 50,40z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M320,366q40,-2 50,-40q-38,0 -50,40z" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7CB342"
+        android:strokeLineCap="round"
+        android:strokeWidth="9"
+        android:pathData="M450,405v-44" />
+    <path
+        android:fillColor="#9CCC65"
+        android:pathData="M450,378q-36,-2 -46,-36q34,0 46,36z" />
+    <path
+        android:fillColor="#AED581"
+        android:pathData="M450,378q36,-2 46,-36q-34,0 -46,36z" />
+</vector>
