@@ -1,3 +1,13 @@
+# Crop Scout (SproutVision — Meta AI Hackathon, Indie track, "Build for Your World")
+
+## Built before the hackathon (before Oct 26, 2026)
+- SproutVision v2 base: HUD, Gemini scan, tray cards, history, delta, scorecard
+- SAM segmentation core (Oct 25, 2026): sam-3.1 + muse-spark via Meta Model API
+
+## Built during the hackathon (Oct 27–Nov 4, 2026)
+- (to be added as built: golden validation, verdict trace, confirmation gate, cost controls)
+
+
 # SproutVision — Quest 3 Edition (Grow HUD)
 
 A microgreens grow assistant for **Meta Quest 3**, reworked HUD-first:
