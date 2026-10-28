@@ -166,6 +166,100 @@ class SamMaskCodecTest {
     }
 
     @Test
+    fun `tray diagnosis lists boxes masks and pixel counts`() {
+        val full = SamRecord(
+            "0", 0, 0, 7, 7, 8, 8, 8, 8, '!',
+            encodeOneBitRaster(ByteArray(64) { 1 }, 8, 8)
+        )
+        val sparse = SamRecord(
+            "1", 0, 0, 3, 3, 8, 8, 4, 4, '!',
+            encodeOneBitRaster(ByteArray(16), 4, 4)
+        )
+        val text = describeTrayInstances(listOf(full, sparse))
+        assertTrue(text.startsWith("2 tray instances: "))
+        assertTrue(text.contains("#0 box=[0,0,7,7] boxArea=64 mask=8x8 ones=64"))
+        assertTrue(text.contains("#1 box=[0,0,3,3] boxArea=16 mask=4x4 ones=0"))
+        assertEquals("0 tray instances", describeTrayInstances(emptyList()))
+    }
+
+    @Test
+    fun `plant summary reports count ones and union box`() {
+        val left = SamRecord(
+            "0", 0, 0, 3, 3, 8, 8, 4, 4, '!',
+            encodeOneBitRaster(ByteArray(16) { 1 }, 4, 4)
+        )
+        val right = SamRecord(
+            "1", 4, 4, 7, 7, 8, 8, 4, 4, '!',
+            encodeOneBitRaster(ByteArray(16) { 1 }, 4, 4)
+        )
+        val text = describePlantSummary(listOf(left, right))
+        assertTrue(text.startsWith("2 plant instances: "))
+        assertTrue(text.contains("ones=32 frame px"))
+        assertTrue(text.contains("unionBox=[0,0,7,7]"))
+        assertTrue(text.contains("unionArea=64"))
+        assertEquals("0 plant instances", describePlantSummary(emptyList()))
+    }
+
+    @Test
+    fun `full-frame mask composites to a full-size grid`() {
+        // 8x8 stands in for a 4000x3000 photo frame: same code path, no
+        // truncation — the grid is frame-sized with every mask pixel kept.
+        val payload = encodeOneBitRaster(ByteArray(64) { 1 }, 8, 8)
+        val line = "<0f>0<|box;x1=0;y1=0;x2=7;y2=7;w=8;h=8|>" +
+            "<|mask;x=0;y=0;data=8,8,$payload|>"
+        val (grid, w, h) = compositeFrameGrid(parseSegmentationLine(line))
+        assertEquals(8, w)
+        assertEquals(8, h)
+        assertEquals(64, grid.count { it == 1 })
+    }
+
+    @Test
+    fun `masks upscale to their boxes with nearest neighbor`() {
+        // Live traffic returns masks downsampled to 1024 on the long
+        // edge: a 2x2 diagonal mask in a 4x4 box must fill the box with
+        // 2x2 blocks, not cram into its top-left corner.
+        val up = SamRecord(
+            "0", 0, 0, 3, 3, 4, 4, 2, 2, '!',
+            encodeOneBitRaster(byteArrayOf(1, 0, 0, 1), 2, 2)
+        )
+        val (grid, w, h) = compositeFrameGrid(listOf(up))
+        assertEquals(4, w)
+        assertEquals(4, h)
+        assertEquals(8, grid.count { it == 1 })
+        assertEquals(1, grid[0 * w + 0])
+        assertEquals(1, grid[1 * w + 1])
+        assertEquals(0, grid[0 * w + 2])
+        assertEquals(0, grid[2 * w + 0])
+        assertEquals(1, grid[2 * w + 2])
+        assertEquals(1, grid[3 * w + 3])
+    }
+
+    @Test
+    fun `non-integer scales sample the nearest cell`() {
+        // 2x2 diagonal mask in a 3x3 box: box cols/rows 0,1 sample mask
+        // cell 0 and col/row 2 samples cell 1 (floor).
+        val odd = SamRecord(
+            "0", 0, 0, 2, 2, 3, 3, 2, 2, '!',
+            encodeOneBitRaster(byteArrayOf(1, 0, 0, 1), 2, 2)
+        )
+        val (grid, _, _) = compositeFrameGrid(listOf(odd))
+        assertEquals(5, grid.count { it == 1 })
+        assertEquals(1, grid[0 * 3 + 1])
+        assertEquals(0, grid[0 * 3 + 2])
+        assertEquals(1, grid[2 * 3 + 2])
+    }
+
+    @Test
+    fun `masks larger than their boxes scale down`() {
+        val down = SamRecord(
+            "0", 0, 0, 1, 1, 4, 4, 4, 4, '!',
+            encodeOneBitRaster(ByteArray(16) { 1 }, 4, 4)
+        )
+        val (grid, _, _) = compositeFrameGrid(listOf(down))
+        assertEquals(4, grid.count { it == 1 })
+    }
+
+    @Test
     fun `blank lines yield no records`() {
         assertTrue(parseSegmentationLine("").isEmpty())
         assertTrue(parseSegmentationLine("   ").isEmpty())

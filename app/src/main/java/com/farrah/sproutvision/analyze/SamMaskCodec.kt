@@ -23,10 +23,12 @@ package com.farrah.sproutvision.analyze
  * - Strict all-or-nothing records: any malformed record fails the whole
  *   call (the caller falls back). A partial union would understate
  *   coverage — worse than no SAM number at all.
- * - Raster placement: each instance raster maps 1:1 onto its box in
- *   source pixels (verified three times over on the docs' own examples:
- *   mask H×W always equals the inclusive box dims). Pastes clip to the
- *   box and frame defensively.
+ * - Raster placement: each instance raster is nearest-neighbor-scaled
+ *   onto its box in source pixels. The docs' examples show mask H×W
+ *   equal to box dims, but live 3000×4000 responses (2026-10-27) return
+ *   masks downsampled to 1024 on the long edge — the mask:box aspect
+ *   match on every record proves the scale-up. Pastes clip to the frame
+ *   defensively.
  * - Mask dims must fit their frame, and frames are sanity-capped, so a
  *   corrupt stream can never OOM the app on allocation.
  */
@@ -641,12 +643,62 @@ fun parseSegmentationLine(line: String): List<SamRecord> {
 }
 
 /**
+ * One-line diagnosis of the tray instances SAM returned: count plus
+ * each instance's box, box area (the coverage denominator), mask dims,
+ * and decoded pixel count (clipped as composited). Undecodable records
+ * report their error instead of throwing, so one corrupt payload
+ * diagnoses instead of hiding the rest. Single-line for console logs.
+ */
+fun describeTrayInstances(records: List<SamRecord>): String {
+    if (records.isEmpty()) return "0 tray instances"
+    return buildString {
+        append(records.size)
+        append(if (records.size == 1) " tray instance: " else " tray instances: ")
+        records.forEachIndexed { i, r ->
+            if (i > 0) append("; ")
+            val ones = try {
+                compositeFrameGrid(listOf(r)).first.count { it == 1 }.toString()
+            } catch (e: Exception) {
+                "undecodable (${(e.message ?: "error").replace('\n', ' ').take(60)})"
+            }
+            val boxArea = (r.x2 - r.x1 + 1) * (r.y2 - r.y1 + 1)
+            append("#$i box=[${r.x1},${r.y1},${r.x2},${r.y2}] boxArea=$boxArea ")
+            append("mask=${r.maskW}x${r.maskH} ones=$ones")
+        }
+    }
+}
+
+/**
+ * One-line diagnosis of the plant instances SAM returned: count, unioned
+ * pixel count in frame units, and the union box plus its area. Ones far
+ * below the union area mean eroded/thresholded masks; a small union box
+ * means missed instances (recall). Undecodable unions report their error
+ * instead of throwing. Single-line for console logs.
+ */
+fun describePlantSummary(records: List<SamRecord>): String {
+    if (records.isEmpty()) return "0 plant instances"
+    val ones = try {
+        compositeFrameGrid(records).first.count { it == 1 }.toString()
+    } catch (e: Exception) {
+        "undecodable (${(e.message ?: "error").replace('\n', ' ').take(60)})"
+    }
+    val x1 = records.minOf { it.x1 }
+    val y1 = records.minOf { it.y1 }
+    val x2 = records.maxOf { it.x2 }
+    val y2 = records.maxOf { it.y2 }
+    val unionArea = (x2 - x1 + 1) * (y2 - y1 + 1)
+    return "${records.size} plant instances: ones=$ones frame px, " +
+        "unionBox=[$x1,$y1,$x2,$y2] unionArea=$unionArea"
+}
+
+/**
  * Decodes every record and unions the rasters onto one full-frame grid
- * (each raster pasted at its box origin, clipped to box and frame).
- * Returns the row-major 0/1 grid plus its width and height, ready for
- * [SamSegmenter.fromMask]. Frame-sized (not union-box) so sparse trays
- * measure near-zero instead of ~100%: the capture flow frames the tray
- * to fill the photo, so frame area approximates tray area.
+ * (each raster nearest-neighbor-scaled onto its box, clipped to the
+ * frame). Returns the row-major 0/1 grid plus its width and height,
+ * ready for [SamSegmenter.fromMask]. Frame-sized (not union-box) so
+ * sparse trays measure near-zero instead of ~100%: the capture flow
+ * frames the tray to fill the photo, so frame area approximates tray
+ * area.
  */
 fun compositeFrameGrid(records: List<SamRecord>): Triple<IntArray, Int, Int> {
     require(records.isNotEmpty()) { "No SAM records to composite." }
@@ -657,15 +709,18 @@ fun compositeFrameGrid(records: List<SamRecord>): Triple<IntArray, Int, Int> {
         val raster = decodeMaskPayload(record.payload, record.maskW, record.maskH)
         val boxW = record.x2 - record.x1 + 1
         val boxH = record.y2 - record.y1 + 1
-        for (row in 0 until record.maskH) {
-            if (row >= boxH) break
-            val frameY = record.y1 + row
+        // Masks arrive downsampled (long edge 1024 on live traffic), so
+        // each box pixel samples its nearest mask cell (floor) — up or
+        // down. A 1:1 paste would cram the mask into the box corner and
+        // undercount by the square of the scale factor.
+        for (boxRow in 0 until boxH) {
+            val frameY = record.y1 + boxRow
             if (frameY >= frameH) break
-            for (col in 0 until record.maskW) {
-                if (col >= boxW) break
-                val frameX = record.x1 + col
+            val rasterRow = (boxRow * record.maskH / boxH) * record.maskW
+            for (boxCol in 0 until boxW) {
+                val frameX = record.x1 + boxCol
                 if (frameX >= frameW) break
-                if (raster[row * record.maskW + col].toInt() == 1) {
+                if (raster[rasterRow + boxCol * record.maskW / boxW].toInt() == 1) {
                     grid[frameY * frameW + frameX] = 1
                 }
             }

@@ -6,6 +6,8 @@ import com.farrah.sproutvision.analyze.SamException
 import com.farrah.sproutvision.analyze.SamRecord
 import com.farrah.sproutvision.analyze.SamSegmenter
 import com.farrah.sproutvision.analyze.compositeFrameGrid
+import com.farrah.sproutvision.analyze.describePlantSummary
+import com.farrah.sproutvision.analyze.describeTrayInstances
 import com.farrah.sproutvision.analyze.escapeJson
 import com.farrah.sproutvision.analyze.largestRecord
 import com.farrah.sproutvision.analyze.samConcept
@@ -55,17 +57,22 @@ private fun shortErr(e: Exception): String =
 
 /**
  * One shot: upload once, tray request, plant request (same file ID),
- * then coverage = union of plant instances ÷ largest tray instance.
- * Network calls are injected so tests run offline. Mirrors
- * MetaSamSegmenter step for step (that file is frozen) plus the
- * instance counts the JSON needs. Never throws for a shot — any
- * failure becomes a null measurement with [ShotOutcome.failed] set.
+ * then coverage = plant pixels clipped to the largest tray instance's
+ * box ÷ box pixels (the tray mask is rim-only). [plantConcept]
+ * overrides the "microgreens" default for concept A/B runs (the
+ * golden JSON records which concept measured it). Network calls are
+ * injected so tests run offline. Mirrors MetaSamSegmenter step for
+ * step plus the instance counts the JSON needs. Never throws for a
+ * shot — any failure becomes a null measurement with
+ * [ShotOutcome.failed] set.
  */
 suspend fun runShot(
     bytes: ByteArray,
     shot: GoldenShot,
     upload: suspend (ByteArray) -> String,
-    records: suspend (fileId: String, concept: String) -> List<SamRecord>
+    records: suspend (fileId: String, concept: String) -> List<SamRecord>,
+    maskOut: File? = null,
+    plantConcept: String = samConcept(growOut = false)
 ): ShotOutcome {
     val fileId = try {
         upload(bytes)
@@ -77,42 +84,60 @@ suspend fun runShot(
     } catch (e: Exception) {
         return ShotOutcome(shot, null, null, null, "tray (${shortErr(e)})")
     }
+    // Per-instance diagnosis: count + box + mask dims + pixel count for
+    // every "black tray" instance, so a broken tray selection shows
+    // which instance was kept and which was missed.
+    println("  tray: ${describeTrayInstances(trayRecords)}")
     val plantRecords = try {
-        records(fileId, samConcept(growOut = false))
+        records(fileId, plantConcept)
     } catch (e: Exception) {
         return ShotOutcome(shot, null, null, trayRecords.size, "plants (${shortErr(e)})")
     }
+    println("  plants: ${describePlantSummary(plantRecords)}")
     return try {
-        val (trayGrid, tw, th) = compositeFrameGrid(listOf(largestRecord(trayRecords)))
+        val tray = largestRecord(trayRecords)
         val (plantGrid, pw, ph) = compositeFrameGrid(plantRecords)
-        if (tw != pw || th != ph) {
-            throw SamException("SAM 3.1 frame mismatch: tray ${tw}x${th}, plants ${pw}x${ph}.")
+        if (tray.frameW != pw || tray.frameH != ph) {
+            throw SamException(
+                "SAM 3.1 frame mismatch: tray ${tray.frameW}x${tray.frameH}, plants ${pw}x${ph}."
+            )
         }
-        val result = SamSegmenter.fromMasks(trayGrid, plantGrid, tw, th)
+        val result = SamSegmenter.fromBox(
+            plantGrid, pw, ph, tray.x1, tray.y1, tray.x2, tray.y2
+        )
+        if (maskOut != null) {
+            try {
+                renderMaskPng(plantGrid, pw, ph, tray.x1, tray.y1, tray.x2, tray.y2, maskOut)
+                println("  mask: $maskOut")
+            } catch (e: Exception) {
+                println("  mask render skipped (${shortErr(e)})")
+            }
+        }
         ShotOutcome(shot, result.coveragePercent, plantRecords.size, trayRecords.size, null)
     } catch (e: Exception) {
         ShotOutcome(shot, null, plantRecords.size, trayRecords.size, "decode (${shortErr(e)})")
     }
 }
 
-fun renderJson(outcomes: List<ShotOutcome>): String = buildString {
-    append("{\"shots\":[")
-    outcomes.forEachIndexed { i, o ->
-        if (i > 0) append(",")
-        val diff = if (o.sam != null) o.sam - o.shot.byEye else null
-        append(
-            "{\"id\":\"" + escapeJson(o.shot.id) + "\"," +
-                "\"samCoverage\":" + (o.sam?.toString() ?: "null") + "," +
-                "\"byEye\":" + o.shot.byEye + "," +
-                "\"difference\":" + (diff?.toString() ?: "null") + "," +
-                "\"plantInstances\":" + (o.plants?.toString() ?: "null") + "," +
-                "\"trayInstances\":" + (o.trays?.toString() ?: "null") + "," +
-                "\"note\":" + (if (o.shot.note == null) "null" else "\"" + escapeJson(o.shot.note) + "\"") +
-                "}"
-        )
+fun renderJson(outcomes: List<ShotOutcome>, concept: String = samConcept(growOut = false)): String =
+    buildString {
+        append("{\"concept\":\"" + escapeJson(concept) + "\",\"shots\":[")
+        outcomes.forEachIndexed { i, o ->
+            if (i > 0) append(",")
+            val diff = if (o.sam != null) o.sam - o.shot.byEye else null
+            append(
+                "{\"id\":\"" + escapeJson(o.shot.id) + "\"," +
+                    "\"samCoverage\":" + (o.sam?.toString() ?: "null") + "," +
+                    "\"byEye\":" + o.shot.byEye + "," +
+                    "\"difference\":" + (diff?.toString() ?: "null") + "," +
+                    "\"plantInstances\":" + (o.plants?.toString() ?: "null") + "," +
+                    "\"trayInstances\":" + (o.trays?.toString() ?: "null") + "," +
+                    "\"note\":" + (if (o.shot.note == null) "null" else "\"" + escapeJson(o.shot.note) + "\"") +
+                    "}"
+            )
+        }
+        append("]}")
     }
-    append("]}")
-}
 
 fun renderTable(outcomes: List<ShotOutcome>): String = buildString {
     appendLine("| Shot | SAM % | By-eye % | Difference |")
@@ -127,6 +152,9 @@ fun renderTable(outcomes: List<ShotOutcome>): String = buildString {
 fun main(args: Array<String>) = runBlocking {
     val photosDir = File(args.getOrElse(0) { "golden-photos" })
     val outFile = File(args.getOrElse(1) { "app/src/main/assets/golden-validation.json" })
+    val masksDir = File(args.getOrElse(2) { "build/masks" })
+    val plantConcept = args.getOrElse(3) { samConcept(growOut = false) }
+    println("Plant concept: $plantConcept")
     val key = System.getenv("META_API_KEY").orEmpty()
     if (key.isBlank()) {
         System.err.println("ERROR: META_API_KEY is not set.")
@@ -145,12 +173,14 @@ fun main(args: Array<String>) = runBlocking {
             runShot(
                 photo.readBytes(), shot,
                 upload = { client.uploadPhoto(it) },
-                records = { id, concept -> client.segmentRecords(id, concept) { println("  [$id] $it") } }
+                records = { id, concept -> client.segmentRecords(id, concept) { println("  [$id] $it") } },
+                maskOut = File(masksDir, "${shot.id}.png"),
+                plantConcept = plantConcept
             )
         }
     }
     outFile.parentFile.mkdirs()
-    outFile.writeText(renderJson(outcomes))
+    outFile.writeText(renderJson(outcomes, plantConcept))
     println()
     println(renderTable(outcomes))
     println()

@@ -9,7 +9,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 /**
  * Offline tests for the golden-run tool: the SAM calls are injected
@@ -17,6 +20,9 @@ import org.junit.Test
  * Meta's own encoder port, so composites decode for real.
  */
 class GoldenValidationTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     private val shot = GoldenShot("shot1-full", "shot1-full.jpg", 70, null)
 
@@ -86,6 +92,93 @@ class GoldenValidationTest {
         assertNull(outcome.sam)
         assertEquals(1, outcome.trays)
         assertTrue(outcome.failed!!.startsWith("plants"))
+    }
+
+    @Test
+    fun `runShot picks the tray with the most mask pixels, not the biggest box`() = runBlocking {
+        // Spurious near-frame tray box (4 px) vs true tray box (16 px):
+        // the dense mask must win and measure a sensible coverage.
+        val sparseTray = record("0", ByteArray(64) { if (it < 4) 1 else 0 }, 8, 8)
+        val denseTray = SamRecord(
+            "1", 0, 0, 3, 3, 8, 8, 4, 4, '!',
+            encodeOneBitRaster(ByteArray(16) { 1 }, 4, 4)
+        )
+        val sparsePlants = record("2", ByteArray(64) { if (it < 8) 1 else 0 }, 8, 8)
+        val outcome = runShot(
+            ByteArray(4), shot,
+            upload = { "file-x" },
+            records = { _, concept ->
+                if (concept == "black tray") listOf(sparseTray, denseTray)
+                else listOf(sparsePlants)
+            }
+        )
+        // 4 in-box plant px ÷ 16 box px: the dense mask wins
+        // selection, and row-0 plants at x=4..7 clip away outside it.
+        assertEquals(25, outcome.sam)
+        assertEquals(1, outcome.plants)
+        assertEquals(2, outcome.trays)
+        assertNull(outcome.failed)
+    }
+
+    @Test
+    fun `runShot measures against the tray box when the tray mask is rim-only`() = runBlocking {
+        // Rim-only analog (golden run 2026-10-27: "black tray" masks hold
+        // ~10% of plant pixels — visible plastic, not tray extent). The
+        // record's box spans the full tray, so 32 plant px ÷ 64 box px
+        // must measure 50 via the box, never null.
+        val rimTray = record("0", ByteArray(64) { if (it < 4) 1 else 0 }, 8, 8)
+        val outcome = runShot(
+            ByteArray(4), shot,
+            upload = { "file-x" },
+            records = { _, concept ->
+                if (concept == "black tray") listOf(rimTray) else listOf(half8)
+            }
+        )
+        assertEquals(50, outcome.sam)
+        assertEquals(1, outcome.plants)
+        assertEquals(1, outcome.trays)
+        assertNull(outcome.failed)
+    }
+
+    @Test
+    fun `runShot sends the override plant concept when given`() = runBlocking {
+        val seen = mutableListOf<String>()
+        val outcome = runShot(
+            ByteArray(4), shot,
+            upload = { "file-x" },
+            records = { _, concept ->
+                seen += concept
+                if (concept == "black tray") listOf(full8) else listOf(half8)
+            },
+            plantConcept = "plants"
+        )
+        assertEquals(50, outcome.sam)
+        assertEquals(listOf("black tray", "plants"), seen)
+    }
+
+    @Test
+    fun `json records the measuring concept`() {
+        val json = renderJson(listOf(ShotOutcome(shot, 72, 14, 2, null)), "plants")
+        val obj = parseJsonObject(json)!!
+        assertEquals("plants", (obj["concept"] as JsonValue.Str).value)
+        val default = renderJson(listOf(ShotOutcome(shot, 72, 14, 2, null)))
+        assertEquals("microgreens", (parseJsonObject(default)!!["concept"] as JsonValue.Str).value)
+    }
+
+    @Test
+    fun `runShot writes a mask render when asked`() = runBlocking {
+        val out = File(tmp.root, "shot1-full.png")
+        val outcome = runShot(
+            ByteArray(4), shot,
+            upload = { "file-x" },
+            records = { _, concept ->
+                if (concept == "black tray") listOf(full8) else listOf(half8)
+            },
+            maskOut = out
+        )
+        assertEquals(50, outcome.sam)
+        assertTrue(out.isFile)
+        assertTrue(out.length() > 0)
     }
 
     @Test

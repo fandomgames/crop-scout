@@ -40,13 +40,27 @@ import java.util.concurrent.TimeUnit
  *
  * @param apiKey Meta Model API key, stored per-user in Settings (never hardcoded).
  * @param segmentationSummary Optional SAM 3.1 measurements, e.g.
- *   "SAM coverage 82%, largest gap bottom-left, uneven germination".
+ *   "SAM coverage 18%, largest gap ~6% of tray, unevenness 32/100".
  *   When present, Spark reasons from the measurement, not just the photo.
  * @param growPlan Optional grower plan, e.g. "basil grown to full maturity,
  *   NOT harvested as a microgreen". This is what stops a mature basil plant
  *   being graded "harvest overdue". In the real v2 ViewModel this is
  *   derived from the scanned tray's GrowIntent (GROW_OUT).
  */
+/**
+ * SAM literal-scale calibration for the Spark prompt (golden-tray runs,
+ * 2026-10-28): SAM counts literal leaf pixels, and two independent
+ * methods agree a full healthy basil tray reads about 15-25% while
+ * growers perceive ~70% canopy. Without this note Spark reads 15% as
+ * sparse. Pure so the contract stays unit-tested; reword deliberately.
+ */
+internal fun samScaleNote(): String =
+    "SAM counts literal leaf pixels: a full healthy microgreen tray measures " +
+        "about 15-25% (golden-tray calibration), so never read a low SAM number " +
+        "as sparse on its own. Judge health against this measured scale, and report " +
+        "coveragePercent as grower-perceived canopy (0-100), reconciling the photo " +
+        "with the measurement."
+
 class MetaAnalyzer(
     private val apiKey: String,
     private val segmentationSummary: String? = null,
@@ -114,7 +128,7 @@ class MetaAnalyzer(
         You are an expert microgreens grower analyzing a photo of a grow tray.
         ${if (!varietyHint.isNullOrBlank()) "The grower believes this tray is: $varietyHint." else ""}
         ${if (!growPlan.isNullOrBlank()) "Grow plan (this overrides a generic harvest window): $growPlan." else ""}
-        ${if (!segmentationSummary.isNullOrBlank()) "Measured by SAM 3.1 segmentation (trust these numbers over a visual estimate): $segmentationSummary." else ""}
+        ${if (!segmentationSummary.isNullOrBlank()) "Measured by SAM 3.1 segmentation (trust these numbers over a visual estimate): $segmentationSummary. ${samScaleNote()}" else ""}
         Identify the variety, the current growth stage (exactly one of: SEEDED, GERMINATION, BLACKOUT, LIGHT, HARVEST),
         estimate canopy coverage percent (0-100), an overall health score (0-100),
         list any visible issues (examples: mold, legginess, uneven germination, damping off, dry spots — empty list if none),

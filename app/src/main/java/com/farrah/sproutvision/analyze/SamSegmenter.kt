@@ -82,6 +82,10 @@ object SamSegmenter {
     /**
      * Coverage from two masks: unioned plant pixels ÷ tray-mask pixels.
      * Gap/unevenness reuse [fromMask] on the plant grid unchanged.
+     * Plants are a subset of the tray area, so more plant pixels than
+     * tray pixels proves the tray mask is wrong (rim-only or sliver)
+     * and throws — the caller reports the measurement unavailable
+     * (null, shown as —), never a clamped 100%.
      * @param label measurement source for the summary ("SAM" or "Demo").
      */
     fun fromMasks(
@@ -94,11 +98,57 @@ object SamSegmenter {
         require(trayGrid.size == width * height) { "Tray grid size ${trayGrid.size} != $width x $height" }
         val tray = trayGrid.count { it == 1 }
         require(tray > 0) { "Tray mask is empty." }
+        val canopy = plantGrid.count { it == 1 }
+        require(canopy <= tray) {
+            "Plant mask ($canopy px) exceeds tray mask ($tray px): tray segmentation is invalid."
+        }
         val base = fromMask(plantGrid, width, height)
-        val coverage = (plantGrid.count { it == 1 } * 100 / tray).coerceIn(0, 100)
+        // No clamp: canopy <= tray makes over-100 impossible, and any
+        // impossible ratio must throw above rather than read 100%.
+        val coverage = canopy * 100 / tray
         val summary = "$label coverage $coverage%, largest gap " +
             "~${base.largestGapPercent}% of tray, unevenness ${base.unevennessScore}/100"
         return base.copy(coveragePercent = coverage, summary = summary)
+    }
+
+    /**
+     * Coverage from a plant grid plus the tray's bounding box: plant
+     * pixels clipped to the box ÷ box pixels. SAM's "black tray" mask
+     * covers only visible plastic (rim), so mask pixels understate the
+     * tray — the box spans the full tray extent including soil and
+     * canopy. Gap/unevenness are tray-relative (computed on the
+     * box-cropped grid). Clipping makes over-100 impossible, so there
+     * is no clamp and no throw for oversized plants.
+     * @param x1 y1 x2 y2 inclusive tray box in grid pixels, inside the frame.
+     * @param label measurement source for the summary ("SAM" or "Demo").
+     */
+    fun fromBox(
+        plantGrid: IntArray,
+        width: Int,
+        height: Int,
+        x1: Int,
+        y1: Int,
+        x2: Int,
+        y2: Int,
+        label: String = "SAM"
+    ): SegmentationResult {
+        require(plantGrid.size == width * height) { "Plant grid size ${plantGrid.size} != $width x $height" }
+        require(width > 0 && height > 0) { "Mask dimensions must be positive" }
+        require(x1 in 0 until width && x2 in 0 until width && x2 >= x1) {
+            "Tray box x-range [$x1, $x2] is outside the 0..${width - 1} frame."
+        }
+        require(y1 in 0 until height && y2 in 0 until height && y2 >= y1) {
+            "Tray box y-range [$y1, $y2] is outside the 0..${height - 1} frame."
+        }
+        val boxW = x2 - x1 + 1
+        val boxH = y2 - y1 + 1
+        val cropped = IntArray(boxW * boxH) { i ->
+            plantGrid[(y1 + i / boxW) * width + (x1 + i % boxW)]
+        }
+        val base = fromMask(cropped, boxW, boxH)
+        val summary = "$label coverage ${base.coveragePercent}%, largest gap " +
+            "~${base.largestGapPercent}% of tray, unevenness ${base.unevennessScore}/100"
+        return base.copy(summary = summary)
     }
 
     /** Quick self-check: a half-covered mask must report ~50% coverage. */

@@ -7,7 +7,8 @@ class SegmentationException(message: String, cause: Throwable? = null) : Excepti
 enum class SegmentationSource { META, DEMO }
 
 /**
- * One segmentation run: the tray mask and the unioned plant mask plus the
+ * One segmentation run: the tray extent grid (tray box filled — the SAM
+ * tray mask itself is rim-only) and the unioned plant mask plus the
  * metrics computed from them. Grids are row-major 0/1, [width] x [height],
  * in the uploaded photo's pixels (≤640 on the long edge).
  */

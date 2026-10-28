@@ -41,6 +41,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 
 // Usage: META_API_KEY='...' ./gradlew :validation:validateGolden
 // Overrides: -PgoldenPhotos=<dir> -PgoldenOut=<golden-validation.json path>
+//   -PgoldenMasks=<mask PNG dir> (default validation/build/masks)
+//   -PgoldenConcept=<plant concept> (default microgreens; A/B only —
+//   write A/B runs to -PgoldenOut=/tmp/... so the committed JSON stays
+//   on the default concept the app ships)
 tasks.register<JavaExec>("validateGolden") {
     group = "verification"
     description = "Runs SAM 3.1 over golden-photos/ and writes golden-validation.json."
@@ -50,8 +54,15 @@ tasks.register<JavaExec>("validateGolden") {
         project.layout.projectDirectory.dir("../golden-photos").asFile.absolutePath
     val outDefault = project.layout.projectDirectory
         .dir("../app/src/main/assets/golden-validation.json").asFile.absolutePath
+    val masksDefault = project.layout.buildDirectory.dir("masks").get().asFile.absolutePath
+    // Must match samConcept(growOut = false); duplicated because a
+    // Gradle script cannot call app code (main() falls back to the real
+    // default when run without this arg).
+    val conceptDefault = "microgreens"
     args(
         (findProperty("goldenPhotos") as String?) ?: photosDefault,
-        (findProperty("goldenOut") as String?) ?: outDefault
+        (findProperty("goldenOut") as String?) ?: outDefault,
+        (findProperty("goldenMasks") as String?) ?: masksDefault,
+        (findProperty("goldenConcept") as String?) ?: conceptDefault
     )
 }

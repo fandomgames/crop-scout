@@ -48,6 +48,17 @@ class ValidationReportTest {
     }
 
     @Test
+    fun `top-level concept field is ignored by the reader`() {
+        // A/B runs record their concept; the in-app view reads shots only.
+        val json = "{\"concept\":\"plants\",\"shots\":[" +
+            "{\"id\":\"shot1-full\",\"samCoverage\":50,\"byEye\":70," +
+            "\"difference\":-20,\"plantInstances\":40,\"trayInstances\":2,\"note\":null}" +
+            "]}"
+        val rows = parseValidationReport(json)!!
+        assertEquals(ValidationRow("shot1-full", 50, 70, -20), rows[0])
+    }
+
+    @Test
     fun `non-array shots degrade to null rows`() {
         val rows = parseValidationReport("{\"shots\":42}")!!
         assertEquals(5, rows.size)
