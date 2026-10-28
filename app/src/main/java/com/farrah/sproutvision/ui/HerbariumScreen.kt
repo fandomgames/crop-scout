@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -139,6 +144,7 @@ fun HerbariumDetailScreen(
     val bitmap = remember(entry.photoPath) {
         decodeHerbariumBitmap(entry.photoPath, sampleSize = 1)
     }
+    var deleteGate by remember(entry.id) { mutableStateOf<ConfirmGate<Unit>>(ConfirmGate.Idle) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -173,8 +179,37 @@ fun HerbariumDetailScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
-                Text("Remove from herbarium", color = MaterialTheme.colorScheme.error)
+            if (deleteGate is ConfirmGate.Staged) {
+                // Removal stages first and applies on a second pinch,
+                // mirroring the tray-detail delete confirms.
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Remove this plant?", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "This removes ${entry.commonName} from the herbarium.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { deleteGate = cancelAct() }) { Text("Cancel") }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = {
+                                val (act, next) = takeAct(deleteGate)
+                                deleteGate = next
+                                if (act != null) onDelete()
+                            }) {
+                                Text("Remove", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            } else {
+                TextButton(onClick = { deleteGate = stageAct(Unit) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Remove from herbarium", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }

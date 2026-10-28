@@ -295,60 +295,103 @@ fun HudResultScreen(
                     )
                     GrowGuideCard(tray)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { vm.applyDetectedStage(tray); onDone() },
-                        modifier = Modifier.weight(1f)
+                var applyGate by remember(stamp) { mutableStateOf<ConfirmGate<Unit>>(ConfirmGate.Idle) }
+                if (applyGate is ConfirmGate.Staged) {
+                    // Harvest apply asks inline first (harvested trays leave
+                    // the HUD), mirroring the HUD advance confirm: the prompt
+                    // swaps into the button row footprint, keyed to the scan.
+                    Text(
+                        "Apply HARVEST to ${tray.name}? It leaves the HUD.",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        modifier = Modifier.fillMaxWidth().hudTextBacking()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Apply stage")
+                        Button(
+                            onClick = {
+                                val (act, next) = takeAct(applyGate)
+                                applyGate = next
+                                if (act != null) { vm.applyDetectedStage(tray); onDone() }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Apply harvest")
+                        }
+                        OutlinedButton(
+                            onClick = { applyGate = cancelAct() },
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Back", color = Color.White, modifier = Modifier.hudTextBacking())
+                        }
                     }
-                    OutlinedButton(
-                        onClick = { vm.saveAnalysis(tray); onDone() },
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
-                        modifier = Modifier.weight(1f)
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Save", color = Color.White, modifier = Modifier.hudTextBacking())
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            val photo = vm.pendingPhoto
-                            val stamp = vm.pendingScanTimestamp
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    ShareImage.share(
-                                        context.applicationContext,
-                                        photo,
-                                        tray.name,
-                                        stamp,
-                                        result.healthScore,
-                                        result.coveragePercent,
-                                        result.issues.joinToString("; ")
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e("SproutShare", "Share failed", e)
-                                    withContext(Dispatchers.Main) {
-                                        // Application context: a Toast on the
-                                        // panel activity context crashes on Quest
-                                        // (window type mismatch).
-                                        Toast.makeText(
+                        Button(
+                            onClick = {
+                                if (applyNeedsConfirm(result.stage, tray.currentStage)) {
+                                    applyGate = stageAct(Unit)
+                                } else {
+                                    vm.applyDetectedStage(tray); onDone()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Apply stage")
+                        }
+                        OutlinedButton(
+                            onClick = { vm.saveAnalysis(tray); onDone() },
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Save", color = Color.White, modifier = Modifier.hudTextBacking())
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val photo = vm.pendingPhoto
+                                val stamp = vm.pendingScanTimestamp
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        ShareImage.share(
                                             context.applicationContext,
-                                            "Share failed: ${e.message}",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                            photo,
+                                            tray.name,
+                                            stamp,
+                                            result.healthScore,
+                                            result.coveragePercent,
+                                            result.issues.joinToString("; ")
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("SproutShare", "Share failed", e)
+                                        withContext(Dispatchers.Main) {
+                                            // Application context: a Toast on the
+                                            // panel activity context crashes on Quest
+                                            // (window type mismatch).
+                                            Toast.makeText(
+                                                context.applicationContext,
+                                                "Share failed: ${e.message}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Share", color = Color.White, modifier = Modifier.hudTextBacking())
-                    }
-                    TextButton(onClick = { vm.discardAnalysis(); onDone() }) {
-                        Text("Discard", color = Color.White, modifier = Modifier.hudTextBacking())
+                            },
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Share", color = Color.White, modifier = Modifier.hudTextBacking())
+                        }
+                        TextButton(onClick = { vm.discardAnalysis(); onDone() }) {
+                            Text("Discard", color = Color.White, modifier = Modifier.hudTextBacking())
+                        }
                     }
                 }
             }
