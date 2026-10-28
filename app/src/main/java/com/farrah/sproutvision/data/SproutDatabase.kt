@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         HerbariumEntity::class,
         PhEcReading::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,7 +39,7 @@ abstract class SproutDatabase : RoomDatabase() {
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-                    MIGRATION_9_10
+                    MIGRATION_9_10, MIGRATION_10_11
                 ).build().also { INSTANCE = it }
             }
 
@@ -149,6 +149,23 @@ abstract class SproutDatabase : RoomDatabase() {
         private val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_9_10_DDL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * DDL executed by [MIGRATION_10_11]. Internal so the unit test can
+         * assert the anchor columns are nullable with no backfill — old
+         * entries read back null anchors (unpinned, never a fake pose).
+         */
+        internal val MIGRATION_10_11_DDL = listOf(
+            "ALTER TABLE `herbarium` ADD COLUMN `anchorX` REAL",
+            "ALTER TABLE `herbarium` ADD COLUMN `anchorY` REAL",
+            "ALTER TABLE `herbarium` ADD COLUMN `anchorZ` REAL"
+        )
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11_DDL.forEach(db::execSQL)
             }
         }
 

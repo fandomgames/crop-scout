@@ -250,6 +250,20 @@ fun IdentifyResultScreen(vm: SproutViewModel, result: PlantIdentification, onDon
             ) {
                 Text("Save to herbarium")
             }
+            Button(
+                onClick = {
+                    vm.pinIdentification(locationNote)
+                    Toast.makeText(
+                        context.applicationContext,
+                        "Saved — place your label",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    onDone()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Pin label")
+            }
             TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
                 Text("Done")
             }

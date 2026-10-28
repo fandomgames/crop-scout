@@ -30,8 +30,16 @@ data class HerbariumEntity(
     val bloomTime: String = "",
     val matureSize: String = "",
     val funFact: String = "",
-    val betterPhotoTip: String = ""
-)
+    val betterPhotoTip: String = "",
+    // World-space anchor for the floating ID label (null = unpinned).
+    // Same pattern as the tray-card anchor: the rack doesn't move, so
+    // saved poses are stable anchors for walk-around viewing.
+    val anchorX: Float? = null,
+    val anchorY: Float? = null,
+    val anchorZ: Float? = null
+) {
+    fun hasAnchor(): Boolean = anchorX != null && anchorY != null && anchorZ != null
+}
 
 /** Builds the herbarium row for an explicit Save — the only write path. */
 fun herbariumEntryOf(

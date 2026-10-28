@@ -29,7 +29,9 @@ import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
+import com.farrah.sproutvision.data.HerbariumEntity
 import com.farrah.sproutvision.data.TrayEntity
+import com.farrah.sproutvision.data.idLabelVisible
 import com.farrah.sproutvision.settings.AppSettings
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.ui.HUD_COMPACT_DESIGN_HEIGHT_DP
@@ -41,6 +43,7 @@ import com.farrah.sproutvision.ui.ScaledHudPanel
 import com.farrah.sproutvision.ui.HudScreen
 import com.farrah.sproutvision.ui.ManageNav
 import com.farrah.sproutvision.ui.SproutViewModel
+import com.farrah.sproutvision.ui.IdLabelRoute
 import com.farrah.sproutvision.ui.TrayCardRoute
 import com.farrah.sproutvision.ui.VerticalViewfinderOverlay
 import com.farrah.sproutvision.ui.verticalViewfinderVisible
@@ -180,6 +183,15 @@ class QuestSproutActivity : AppSystemActivity() {
         var ghostSlot: Int = 0
     )
     private val trayCards = ConcurrentHashMap<Long, TrayCard>()
+    /** One runtime-registered floating ID label per herbarium entry, keyed by entry id. */
+    private data class IdLabel(
+        val entryId: Long,
+        val entity: Entity,
+        var anchored: Boolean = false,
+        var grabEnabled: Boolean = false,
+        var wasGrabbed: Boolean = false
+    )
+    private val idLabels = ConcurrentHashMap<Long, IdLabel>()
     // Runtime panel ids: 1e9 (0x3B9ACA00) can never collide with aapt ids,
     // which always carry the 0x7F package prefix.
     private var nextCardPanelId = 1_000_000_000
@@ -580,6 +592,10 @@ class QuestSproutActivity : AppSystemActivity() {
             trayCards.clear()
             nextCardPanelId = 1_000_000_000
         }
+        if (idLabels.isNotEmpty()) {
+            Log.i(TAG, "onSceneReady: dropping ${idLabels.size} stale ID labels")
+            idLabels.clear()
+        }
         scene.setReferenceSpace(ReferenceSpace.LOCAL_FLOOR)
 
         // No skybox entity is created — with passthrough enabled the real
@@ -629,6 +645,16 @@ class QuestSproutActivity : AppSystemActivity() {
             ) { trays, placing, clean -> Triple(trays, placing, clean) }
                 .collect { (trays, placing, clean) ->
                     syncTrayCards(trays, placing, clean)
+                }
+        }
+        panelJobs += CoroutineScope(Dispatchers.Main).launch {
+            combine(
+                vm.herbarium,
+                snapshotFlow { vm.labelPlacementEntryId },
+                snapshotFlow { vm.cleanMode }
+            ) { entries, placingId, clean -> Triple(entries, placingId, clean) }
+                .collect { (entries, placingId, clean) ->
+                    syncIdLabels(entries, placingId, clean)
                 }
         }
         sceneEntitiesCreated = true
@@ -759,10 +785,20 @@ class QuestSproutActivity : AppSystemActivity() {
             }
         }
         trayCards.clear()
+        for ((entryId, label) in idLabels) {
+            try {
+                label.entity.destroy()
+            } catch (e: Exception) {
+                Log.e(TAG, "destroying ID label $entryId failed", e)
+                WakeLog.log(this, "recreate destroy label=$entryId FAILED ${e.message}")
+            }
+        }
+        idLabels.clear()
         // nextCardPanelId keeps incrementing: old runtime registrations
         // persist in the SDK map, so IDs must never be reused.
         hudWasGrabbed = false
         vm.dropCardTrayId = null
+        vm.dropLabelEntryId = null
 
         hudEntity = createHudEntity(hudPose ?: hudSpawn, vis.hud)
         manageEntity = createManageEntity(managePose ?: manageSpawn, vis.manage)
@@ -775,6 +811,12 @@ class QuestSproutActivity : AppSystemActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "tray card restore failed", e)
             WakeLog.log(this, "recreate traySync FAILED ${e.message}")
+        }
+        try {
+            syncIdLabels(vm.herbarium.value, vm.labelPlacementEntryId, vm.cleanMode)
+        } catch (e: Exception) {
+            Log.e(TAG, "ID label restore failed", e)
+            WakeLog.log(this, "recreate labelSync FAILED ${e.message}")
         }
         WakeLog.log(
             this,
@@ -981,6 +1023,128 @@ class QuestSproutActivity : AppSystemActivity() {
         return TrayCard(trayId = trayId, entity = entity)
     }
 
+    /**
+     * Reconciles floating ID labels with herbarium state. Mirrors
+     * [syncTrayCards]: one panel per entry on demand, labels for deleted
+     * entries destroyed, visibility and saved poses applied. Only the
+     * entry being pinned shows a ghost; anchored labels render at their
+     * saved anchors, so they stay put as the grower walks the rack.
+     */
+    private fun syncIdLabels(entries: List<HerbariumEntity>, placingId: Long?, clean: Boolean) {
+        try {
+            idLabels.keys
+                .filter { id -> entries.none { it.id == id } }
+                .forEach { id ->
+                    try {
+                        idLabels.remove(id)?.entity?.destroy()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "dropping ID label $id failed", e)
+                        idLabels.remove(id)
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "ID label cleanup failed", e)
+        }
+        if (placingId == null) {
+            // Stale grab/drop state must never fire after the mode exits.
+            idLabels.values.forEach { it.wasGrabbed = false }
+            vm.dropLabelEntryId = null
+        }
+        for (entry in entries) {
+            try {
+                syncOneIdLabel(entry, placingId == entry.id, clean)
+            } catch (e: Exception) {
+                Log.e(TAG, "syncing ID label ${entry.id} failed", e)
+            }
+        }
+    }
+
+    /** Creates-on-demand and syncs one entry's floating ID label. See [syncIdLabels]. */
+    private fun syncOneIdLabel(entry: HerbariumEntity, placingThis: Boolean, clean: Boolean) {
+        val label = idLabels.getOrPut(entry.id) { createIdLabel(entry.id) }
+        label.anchored = entry.hasAnchor()
+        label.entity.setComponent(
+            Visible(idLabelVisible(label.anchored, placingThis, clean))
+        )
+        // Labels stay grabbable like tray cards — grab to move anytime
+        // (the release tick saves the pose); Pin mode only adds the ghost.
+        // Set once, never mid-grab (swapping then would cancel the drag).
+        if (!label.grabEnabled) {
+            label.grabEnabled = true
+            label.entity.setComponent(
+                Grabbable().apply {
+                    enabled = true
+                    type = GrabbableType.PIVOT_Y
+                    minHeight = 0.2f
+                    maxHeight = 3.0f
+                }
+            )
+        }
+        // Never rewrite the pose mid-grab — the release tick owns the save.
+        val grabbed = label.entity.tryGetComponent<Grabbable>()?.isGrabbed == true
+        if (!grabbed) {
+            val upright = scene.getViewerPose().q.removePitchAndRoll()
+            if (label.anchored) {
+                label.entity.setComponent(
+                    Transform(
+                        Pose(
+                            Vector3(entry.anchorX!!, entry.anchorY!!, entry.anchorZ!!),
+                            upright
+                        )
+                    )
+                )
+            } else if (placingThis) {
+                val viewer = scene.getViewerPose()
+                val ghostPose = viewer.times(ghostOffset(0))
+                label.entity.setComponent(Transform(Pose(ghostPose.t, upright)))
+            }
+        }
+    }
+
+    /** Registers one ID-label panel at runtime and creates its entity. */
+    private fun createIdLabel(entryId: Long): IdLabel {
+        val panelId = nextCardPanelId++
+        registerPanel(
+            ComposeViewPanelRegistration(
+                registrationId = panelId,
+                composeViewCreator = { _, context ->
+                    ComposeView(context).apply {
+                        setContent {
+                            CompositionLocalProvider(
+                                LocalOnBackPressedDispatcherOwner provides backDispatcherOwner,
+                                LocalActivityResultRegistryOwner provides activityResultRegistryOwner
+                            ) {
+                                IdLabelRoute(vm, entryId)
+                            }
+                        }
+                    }
+                },
+                settingsCreator = {
+                    UIPanelSettings(
+                        shape = QuadShapeOptions(width = 0.40f, height = 0.30f),
+                        display = DpDisplayOptions(width = 400f, height = 300f)
+                    )
+                }
+            )
+        )
+        val entity = Entity.create(
+            Panel(panelId),
+            Transform(Pose(Vector3(0f, 1.5f, 1.2f))),
+            Visible(false),
+            Grabbable().apply {
+                enabled = false
+                type = GrabbableType.PIVOT_Y
+                minHeight = 0.2f
+                maxHeight = 3.0f
+            },
+            IsdkPanelResize().apply {
+                enabled = true
+                resizeMode = ResizeMode.Relayout
+            }
+        )
+        return IdLabel(entryId = entryId, entity = entity)
+    }
+
     /** Viewer-space spawn pose for ghost [slot]: fanned out, ~1.1 m out. */
     private fun ghostOffset(slot: Int): Pose = Pose(
         Vector3((slot % 3 - 1) * 0.5f, -0.15f - (slot / 3) * 0.4f, 1.1f)
@@ -1161,6 +1325,7 @@ class QuestSproutActivity : AppSystemActivity() {
         // Card upkeep runs every tick: anchored yaw can never go stale
         // (see cardTickScope); ghost glides stay placement-gated inside.
         tickTrayCards()
+        tickIdLabels()
     }
 
     /**
@@ -1218,6 +1383,61 @@ class QuestSproutActivity : AppSystemActivity() {
         card.entity.tryGetComponent<Transform>()?.transform?.t?.let { p ->
             vm.setTrayAnchor(trayId, p.x, p.y, p.z)
         }
+    }
+
+    /**
+     * Per-frame ID-label work, mirroring [tickTrayCards]: anchored labels
+     * re-face the viewer every tick (yaw-only billboards, stable world
+     * positions for walk-around viewing); the placement ghost tracks the
+     * view, and every grab-release or ghost tap persists the world pose
+     * as the entry's anchor.
+     */
+    private fun tickIdLabels() {
+        if (idLabels.isEmpty()) return
+        val placing = vm.labelPlacementEntryId != null
+        val scope = cardTickScope(placing)
+        val viewer = scene.getViewerPose()
+        val upright = viewer.q.removePitchAndRoll()
+        for ((entryId, label) in idLabels) {
+            val grabbed = label.entity.tryGetComponent<Grabbable>()?.isGrabbed == true
+            if (!grabbed) {
+                if (!label.anchored) {
+                    if (scope.trackGhosts && vm.labelPlacementEntryId == entryId) {
+                        val ghostPose = viewer.times(ghostOffset(0))
+                        label.entity.setComponent(Transform(Pose(ghostPose.t, upright)))
+                    }
+                } else if (scope.refreshAnchoredYaw) {
+                    label.entity.tryGetComponent<Transform>()?.transform?.t?.let { p ->
+                        label.entity.setComponent(
+                            Transform(Pose(Vector3(p.x, p.y, p.z), upright))
+                        )
+                    }
+                }
+            }
+            if (scope.persistGrabs) {
+                if (grabbed) {
+                    label.wasGrabbed = true
+                } else if (label.wasGrabbed) {
+                    label.wasGrabbed = false
+                    saveLabelPose(entryId, label)
+                }
+            }
+        }
+        // Ghost tap-to-drop: pinch on the ghost drops it in place.
+        if (scope.persistGrabs) {
+            vm.dropLabelEntryId?.let { entryId ->
+                vm.dropLabelEntryId = null
+                idLabels[entryId]?.let { saveLabelPose(entryId, it) }
+            }
+        }
+    }
+
+    private fun saveLabelPose(entryId: Long, label: IdLabel) {
+        label.entity.tryGetComponent<Transform>()?.transform?.t?.let { p ->
+            vm.setHerbariumAnchor(entryId, p.x, p.y, p.z)
+        }
+        // The drop lands the label: placement ends once a pose is saved.
+        vm.labelPlacementEntryId = null
     }
 
     companion object {

@@ -137,4 +137,10 @@ interface SproutDao {
 
     @Delete
     suspend fun deleteHerbarium(entry: HerbariumEntity)
+
+    @Query("SELECT * FROM herbarium")
+    suspend fun getHerbariumOnce(): List<HerbariumEntity>
+
+    @Update
+    suspend fun updateHerbarium(entry: HerbariumEntity)
 }

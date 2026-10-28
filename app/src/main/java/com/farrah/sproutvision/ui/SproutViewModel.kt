@@ -44,6 +44,7 @@ import com.farrah.sproutvision.data.VarietyDefaults
 import com.farrah.sproutvision.data.VarietyScorecard
 import com.farrah.sproutvision.data.VarietyTrialEntity
 import com.farrah.sproutvision.data.buildScorecards
+import com.farrah.sproutvision.data.nextExpandedLabel
 import com.farrah.sproutvision.reminders.ReminderScheduler
 import com.farrah.sproutvision.settings.AppSettings
 import com.farrah.sproutvision.settings.MAX_TIMING_SAMPLES
@@ -184,6 +185,20 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
      * reads the ghost's world pose and saves it. Single-shot by design.
      */
     var dropCardTrayId by mutableStateOf<Long?>(null)
+    /**
+     * Herbarium entry whose ID label is being pinned (null = no label
+     * placement active). Only this entry shows a placement ghost, so Pin
+     * never drags the tray ghosts along with it.
+     */
+    var labelPlacementEntryId by mutableStateOf<Long?>(null)
+    /** Herbarium entry whose floating label is expanded (null = all compact). */
+    var expandedLabelEntryId by mutableStateOf<Long?>(null)
+        private set
+    /**
+     * Label ghost tap-to-drop request (herbarium entry id), consumed by
+     * the scene tick like [dropCardTrayId]. Single-shot by design.
+     */
+    var dropLabelEntryId by mutableStateOf<Long?>(null)
 
     fun observeTray(id: Long) = repository.observeTray(id)
     fun observeStages(id: Long) = repository.observeStages(id)
@@ -731,6 +746,33 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteHerbariumEntry(entry: HerbariumEntity) {
         viewModelScope.launch { repository.deleteHerbariumEntry(entry) }
+    }
+
+    /**
+     * Pin label flow: files the pending card in the herbarium (the tap is
+     * the explicit save), then opens label placement for the new entry.
+     * Touches only the herbarium row — never tray data.
+     */
+    fun pinIdentification(locationNote: String) {
+        val result = pendingIdentification ?: return
+        viewModelScope.launch {
+            val entryId = repository.saveHerbariumEntry(
+                result, identifyPhotoPath, identifyTimestampMs, locationNote.trim()
+            )
+            labelPlacementEntryId = entryId
+        }
+    }
+
+    fun setHerbariumAnchor(entryId: Long, x: Float, y: Float, z: Float) {
+        viewModelScope.launch { repository.setHerbariumAnchor(entryId, x, y, z) }
+    }
+
+    fun clearHerbariumAnchor(entryId: Long) {
+        viewModelScope.launch { repository.clearHerbariumAnchor(entryId) }
+    }
+
+    fun toggleLabelExpanded(entryId: Long) {
+        expandedLabelEntryId = nextExpandedLabel(expandedLabelEntryId, entryId)
     }
 
     fun setTrayAnchor(trayId: Long, x: Float, y: Float, z: Float) {

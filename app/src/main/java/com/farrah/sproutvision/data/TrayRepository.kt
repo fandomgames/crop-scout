@@ -344,11 +344,25 @@ class TrayRepository(private val dao: SproutDao) {
         photoPath: String?,
         timestampMs: Long,
         locationNote: String
-    ) {
+    ): Long =
         dao.insertHerbarium(herbariumEntryOf(result, photoPath, timestampMs, locationNote))
-    }
 
     suspend fun deleteHerbariumEntry(entry: HerbariumEntity) = dao.deleteHerbarium(entry)
+
+    /**
+     * Pins the entry's floating ID label at a world-space pose. Re-reads
+     * the row first so a placement save never clobbers a concurrent edit.
+     * Touches only the herbarium row — never tray data.
+     */
+    suspend fun setHerbariumAnchor(entryId: Long, x: Float, y: Float, z: Float) {
+        val entry = dao.getHerbariumOnce().find { it.id == entryId } ?: return
+        dao.updateHerbarium(entry.copy(anchorX = x, anchorY = y, anchorZ = z))
+    }
+
+    suspend fun clearHerbariumAnchor(entryId: Long) {
+        val entry = dao.getHerbariumOnce().find { it.id == entryId } ?: return
+        dao.updateHerbarium(entry.copy(anchorX = null, anchorY = null, anchorZ = null))
+    }
 
     private suspend fun insertSeedTrays(seed: List<SeedTray>) {
         for (tray in seed) {
