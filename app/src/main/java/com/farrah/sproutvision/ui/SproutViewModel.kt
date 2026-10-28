@@ -43,6 +43,8 @@ import com.farrah.sproutvision.data.WildPhotoStore
 import com.farrah.sproutvision.data.VarietyDefaults
 import com.farrah.sproutvision.data.VarietyScorecard
 import com.farrah.sproutvision.data.VarietyTrialEntity
+import com.farrah.sproutvision.data.FeedingSchedule
+import com.farrah.sproutvision.data.NutrientProduct
 import com.farrah.sproutvision.data.buildScorecards
 import com.farrah.sproutvision.data.nextExpandedLabel
 import com.farrah.sproutvision.reminders.ReminderScheduler
@@ -100,6 +102,10 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Saved wild-plant identifications (herbarium grid). Written on Save taps only. */
     val herbarium: StateFlow<List<HerbariumEntity>> = repository.observeHerbarium()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Nutrient inventory (Manage). Written by explicit Save taps only. */
+    val nutrients: StateFlow<List<NutrientProduct>> = repository.observeNutrients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Crop trial scorecard leaderboard, sorted by composite score. */
@@ -254,6 +260,33 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     fun observeScans(trayId: Long) = repository.observeScans(trayId)
 
     fun observePhEcReadings(trayId: Long) = repository.observePhEcReadings(trayId)
+
+    fun saveNutrient(product: NutrientProduct) {
+        viewModelScope.launch { repository.saveNutrient(product) }
+    }
+
+    fun deleteNutrient(product: NutrientProduct) {
+        viewModelScope.launch { repository.deleteNutrient(product) }
+    }
+
+    fun observeSchedules(trayId: Long) = repository.observeSchedules(trayId)
+
+    fun saveSchedule(trayId: Long, nutrientId: Long, strengthPercent: Int, startStage: String?) {
+        viewModelScope.launch { repository.saveSchedule(trayId, nutrientId, strengthPercent, startStage) }
+    }
+
+    fun deleteSchedule(schedule: FeedingSchedule) {
+        viewModelScope.launch { repository.deleteSchedule(schedule) }
+    }
+
+    fun observeFeedings(trayId: Long) = repository.observeFeedings(trayId)
+
+    fun logFeeding(trayId: Long, nutrientId: Long, strengthPercent: Int, reservoirLiters: Double) {
+        viewModelScope.launch {
+            val product = nutrients.value.firstOrNull { it.id == nutrientId }
+            repository.logFeeding(trayId, product, strengthPercent, reservoirLiters)
+        }
+    }
 
     fun savePhEcReading(trayId: Long, ph: Double?, ec: Double?) {
         viewModelScope.launch { repository.savePhEcReading(trayId, ph, ec) }

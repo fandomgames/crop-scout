@@ -99,6 +99,21 @@ class IdLabelTest {
         override suspend fun updateHerbarium(entry: HerbariumEntity) {
             entries.replaceAll { if (it.id == entry.id) entry else it }
         }
+        override fun observeNutrients(): Flow<List<NutrientProduct>> = emptyFlow()
+        override suspend fun insertNutrient(product: NutrientProduct): Long =
+            throw UnsupportedOperationException()
+        override suspend fun updateNutrient(product: NutrientProduct): Unit =
+            throw UnsupportedOperationException()
+        override suspend fun deleteNutrient(product: NutrientProduct): Unit =
+            throw UnsupportedOperationException()
+        override fun observeSchedules(trayId: Long): Flow<List<FeedingSchedule>> = emptyFlow()
+        override suspend fun insertSchedule(schedule: FeedingSchedule): Long =
+            throw UnsupportedOperationException()
+        override suspend fun deleteSchedule(schedule: FeedingSchedule): Unit =
+            throw UnsupportedOperationException()
+        override fun observeFeedings(trayId: Long): Flow<List<FeedingEntry>> = emptyFlow()
+        override suspend fun insertFeeding(entry: FeedingEntry): Long =
+            throw UnsupportedOperationException()
     }
 
     private fun basil(confidence: IdentifyConfidence = IdentifyConfidence.HIGH) =

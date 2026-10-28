@@ -31,6 +31,7 @@ sealed interface ManageScreen {
     data object Scorecard : ManageScreen
     data object Herbarium : ManageScreen
     data object Validation : ManageScreen
+    data object Nutrients : ManageScreen
     data class Detail(val trayId: Long) : ManageScreen
     data class History(val trayId: Long) : ManageScreen
     data class HerbariumDetail(val entryId: Long) : ManageScreen
@@ -42,6 +43,7 @@ fun ManageNav(vm: SproutViewModel) {
     val trays by vm.trays.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val herbarium by vm.herbarium.collectAsStateWithLifecycle()
+    val nutrients by vm.nutrients.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -65,6 +67,7 @@ fun ManageNav(vm: SproutViewModel) {
             onScorecard = { screen = ManageScreen.Scorecard },
             onHerbarium = { screen = ManageScreen.Herbarium },
             onValidation = { screen = ManageScreen.Validation },
+            onNutrients = { screen = ManageScreen.Nutrients },
             placementMode = vm.placementMode,
             onTogglePlacement = { vm.placementMode = !vm.placementMode },
             onExportHistory = {
@@ -101,6 +104,8 @@ fun ManageNav(vm: SproutViewModel) {
             val stages by vm.observeStages(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val scans by vm.observeScans(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val readings by vm.observePhEcReadings(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
+            val schedules by vm.observeSchedules(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
+            val feedings by vm.observeFeedings(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val baseline by vm.observeBaseline(s.trayId)
                 .collectAsStateWithLifecycle(initialValue = null)
             BackHandler { screen = ManageScreen.Dashboard }
@@ -143,6 +148,16 @@ fun ManageNav(vm: SproutViewModel) {
                     onSaveReading = { ph, ec -> vm.savePhEcReading(current.id, ph, ec) },
                     onSetTargets = { low, high, ecLow, ecHigh ->
                         vm.setPhEcTargets(current.id, low, high, ecLow, ecHigh)
+                    },
+                    nutrients = nutrients,
+                    schedules = schedules,
+                    feedings = feedings,
+                    onSaveSchedule = { nutrientId, strength, startStage ->
+                        vm.saveSchedule(current.id, nutrientId, strength, startStage)
+                    },
+                    onDeleteSchedule = vm::deleteSchedule,
+                    onLogFeeding = { nutrientId, strength, reservoir ->
+                        vm.logFeeding(current.id, nutrientId, strength, reservoir)
                     }
                 )
             }
@@ -162,6 +177,17 @@ fun ManageNav(vm: SproutViewModel) {
         is ManageScreen.Validation -> {
             BackHandler { screen = ManageScreen.Dashboard }
             ValidationScreen(
+                onBack = { screen = ManageScreen.Dashboard },
+                onClose = { vm.manageVisible = false }
+            )
+        }
+
+        is ManageScreen.Nutrients -> {
+            BackHandler { screen = ManageScreen.Dashboard }
+            NutrientScreen(
+                products = nutrients,
+                onSave = vm::saveNutrient,
+                onDelete = vm::deleteNutrient,
                 onBack = { screen = ManageScreen.Dashboard },
                 onClose = { vm.manageVisible = false }
             )

@@ -59,14 +59,23 @@ import com.farrah.sproutvision.data.ScanEntity
 import com.farrah.sproutvision.data.StageEntryEntity
 import com.farrah.sproutvision.data.PhEcReading
 import com.farrah.sproutvision.data.TrayEntity
+import com.farrah.sproutvision.data.FeedingEntry
+import com.farrah.sproutvision.data.FeedingSchedule
+import com.farrah.sproutvision.data.NutrientProduct
 import com.farrah.sproutvision.data.VarietyDefaults
+import com.farrah.sproutvision.data.canLogFeeding
 import com.farrah.sproutvision.data.canSavePhEc
+import com.farrah.sproutvision.data.computeDose
+import com.farrah.sproutvision.data.dosageRuleOf
+import com.farrah.sproutvision.data.formatDose
 import com.farrah.sproutvision.data.formatPhEc
 import com.farrah.sproutvision.data.isOutOfRange
 import com.farrah.sproutvision.data.latestReading
 import com.farrah.sproutvision.data.rangeSuffix
 import com.farrah.sproutvision.data.stepReadingEc
 import com.farrah.sproutvision.data.stepReadingPh
+import com.farrah.sproutvision.data.stepReservoir
+import com.farrah.sproutvision.data.stepStrength
 import com.farrah.sproutvision.data.stepTargetEcHigh
 import com.farrah.sproutvision.data.stepTargetEcLow
 import com.farrah.sproutvision.data.stepTargetPhHigh
@@ -105,7 +114,13 @@ fun TrayDetailScreen(
     onSnapshotBaseline: () -> Unit,
     readings: List<PhEcReading>,
     onSaveReading: (ph: Double?, ec: Double?) -> Unit,
-    onSetTargets: (phLow: Double?, phHigh: Double?, ecLow: Double?, ecHigh: Double?) -> Unit
+    onSetTargets: (phLow: Double?, phHigh: Double?, ecLow: Double?, ecHigh: Double?) -> Unit,
+    nutrients: List<NutrientProduct>,
+    schedules: List<FeedingSchedule>,
+    feedings: List<FeedingEntry>,
+    onSaveSchedule: (nutrientId: Long, strengthPercent: Int, startStage: String?) -> Unit,
+    onDeleteSchedule: (FeedingSchedule) -> Unit,
+    onLogFeeding: (nutrientId: Long, strengthPercent: Int, reservoirLiters: Double) -> Unit
 ) {
     var notes by remember(tray.id) { mutableStateOf(tray.notes) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -527,6 +542,17 @@ fun TrayDetailScreen(
             )
             Spacer(Modifier.height(16.dp))
 
+            FeedingSection(
+                trayId = tray.id,
+                nutrients = nutrients,
+                schedules = schedules,
+                feedings = feedings,
+                onSaveSchedule = onSaveSchedule,
+                onDeleteSchedule = onDeleteSchedule,
+                onLogFeeding = onLogFeeding
+            )
+            Spacer(Modifier.height(16.dp))
+
             Text("Notes", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -796,6 +822,216 @@ private fun PhEcReadingRow(reading: PhEcReading, tray: TrayEntity) {
         if (reading.note.isNotBlank()) {
             Text(
                 reading.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Per-tray feeding: schedules plus the feeding log. Hands-only — nutrient
+ * picks and steppers, no typing. The dose preview and the logged dose both
+ * come from the pure [computeDose], never an LLM. Log only — feeding
+ * never feeds the verdict.
+ */
+@Composable
+private fun FeedingSection(
+    trayId: Long,
+    nutrients: List<NutrientProduct>,
+    schedules: List<FeedingSchedule>,
+    feedings: List<FeedingEntry>,
+    onSaveSchedule: (nutrientId: Long, strengthPercent: Int, startStage: String?) -> Unit,
+    onDeleteSchedule: (FeedingSchedule) -> Unit,
+    onLogFeeding: (nutrientId: Long, strengthPercent: Int, reservoirLiters: Double) -> Unit
+) {
+    var pickedId by remember(trayId) { mutableStateOf<Long?>(null) }
+    var strength by remember(trayId) { mutableStateOf(100) }
+    var reservoir by remember(trayId) { mutableStateOf(0.0) }
+    var startStage by remember(trayId) { mutableStateOf<String?>(null) }
+    val picked = nutrients.firstOrNull { it.id == pickedId }
+    val todayMs = remember { System.currentTimeMillis() }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Feeding", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(8.dp))
+        if (nutrients.isEmpty()) {
+            Text(
+                "No nutrients in inventory — add some in Manage first.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                "Nutrient",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            nutrients.forEach { product ->
+                TextButton(onClick = { pickedId = product.id }) {
+                    Text(
+                        (if (product.id == pickedId) "● " else "○ ") + product.name,
+                        color = if (product.id == pickedId) MaterialTheme.colorScheme.primary
+                        else Color.Unspecified
+                    )
+                }
+            }
+            PhEcStepperRow(
+                label = "Strength",
+                value = "$strength%",
+                onMinus = { strength = stepStrength(strength, false) },
+                onPlus = { strength = stepStrength(strength, true) }
+            )
+            Text(
+                "Start",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(modifier = Modifier.fillMaxWidth()) {
+                FeedingStagePick(
+                    label = "Anytime",
+                    selected = startStage == null,
+                    onClick = { startStage = null }
+                )
+                GrowthStage.entries.forEach { stage ->
+                    FeedingStagePick(
+                        label = stage.displayName,
+                        selected = startStage == stage.name,
+                        onClick = { startStage = stage.name }
+                    )
+                }
+            }
+            Button(
+                onClick = { pickedId?.let { onSaveSchedule(it, strength, startStage) } },
+                enabled = pickedId != null
+            ) {
+                Text("Save schedule")
+            }
+            Spacer(Modifier.height(8.dp))
+            if (schedules.isEmpty()) {
+                Text(
+                    "No schedules yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                schedules.forEach { schedule ->
+                    FeedingScheduleRow(
+                        schedule = schedule,
+                        productName = nutrients.firstOrNull { it.id == schedule.nutrientId }?.name
+                            ?: "Removed nutrient",
+                        onDelete = { onDeleteSchedule(schedule) }
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Log feeding · ${formatDate(todayMs)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            PhEcStepperRow(
+                label = "Reservoir (L)",
+                value = String.format(java.util.Locale.US, "%.1f", reservoir),
+                onMinus = { reservoir = stepReservoir(reservoir, false) },
+                onPlus = { reservoir = stepReservoir(reservoir, true) }
+            )
+            Text(
+                text = "Dose: " + formatDose(
+                    computeDose(
+                        picked?.let(::dosageRuleOf), reservoir, strength
+                    ),
+                    picked?.doseUnit ?: "ml"
+                ),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Button(
+                onClick = {
+                    pickedId?.let { onLogFeeding(it, strength, reservoir) }
+                    reservoir = 0.0
+                },
+                enabled = canLogFeeding(pickedId, reservoir)
+            ) {
+                Text("Log feeding")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (feedings.isEmpty()) {
+            Text(
+                "No feedings logged yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            feedings.forEach { entry ->
+                FeedingEntryRow(
+                    entry = entry,
+                    productName = nutrients.firstOrNull { it.id == entry.nutrientId }?.name
+                        ?: "Removed nutrient"
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedingStagePick(label: String, selected: Boolean, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Text(
+            (if (selected) "● " else "○ ") + label,
+            color = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified
+        )
+    }
+}
+
+@Composable
+private fun FeedingScheduleRow(
+    schedule: FeedingSchedule,
+    productName: String,
+    onDelete: () -> Unit
+) {
+    var deleteGate by remember(schedule.id) { mutableStateOf<ConfirmGate<Unit>>(ConfirmGate.Idle) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$productName · ${schedule.strengthPercent}% · " +
+                    (schedule.startStage?.let { GrowthStage.fromName(it).displayName }
+                        ?: "anytime"),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            if (deleteGate is ConfirmGate.Staged) {
+                TextButton(onClick = { deleteGate = cancelAct() }) { Text("Cancel") }
+                TextButton(onClick = {
+                    val (act, next) = takeAct(deleteGate)
+                    deleteGate = next
+                    if (act != null) onDelete()
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                TextButton(onClick = { deleteGate = stageAct(Unit) }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedingEntryRow(entry: FeedingEntry, productName: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = formatDate(entry.timestampEpochMs) +
+                " · $productName · ${entry.strengthPercent}%" +
+                " · ${formatDose(entry.doseAmount, entry.doseUnit)}" +
+                " / ${String.format(java.util.Locale.US, "%.1f", entry.reservoirLiters)} L",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        if (entry.note.isNotBlank()) {
+            Text(
+                entry.note,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

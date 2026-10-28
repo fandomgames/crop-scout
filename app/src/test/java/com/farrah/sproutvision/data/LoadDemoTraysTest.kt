@@ -82,6 +82,21 @@ class LoadDemoTraysTest {
             throw UnsupportedOperationException()
         override suspend fun updateHerbarium(entry: HerbariumEntity): Unit =
             throw UnsupportedOperationException()
+        override fun observeNutrients(): Flow<List<NutrientProduct>> = emptyFlow()
+        override suspend fun insertNutrient(product: NutrientProduct): Long =
+            throw UnsupportedOperationException()
+        override suspend fun updateNutrient(product: NutrientProduct): Unit =
+            throw UnsupportedOperationException()
+        override suspend fun deleteNutrient(product: NutrientProduct): Unit =
+            throw UnsupportedOperationException()
+        override fun observeSchedules(trayId: Long): Flow<List<FeedingSchedule>> = emptyFlow()
+        override suspend fun insertSchedule(schedule: FeedingSchedule): Long =
+            throw UnsupportedOperationException()
+        override suspend fun deleteSchedule(schedule: FeedingSchedule): Unit =
+            throw UnsupportedOperationException()
+        override fun observeFeedings(trayId: Long): Flow<List<FeedingEntry>> = emptyFlow()
+        override suspend fun insertFeeding(entry: FeedingEntry): Long =
+            throw UnsupportedOperationException()
         override suspend fun insertPhEcReading(reading: PhEcReading): Long =
             throw UnsupportedOperationException()
         override fun observePhEcReadings(trayId: Long): Flow<List<PhEcReading>> = emptyFlow()

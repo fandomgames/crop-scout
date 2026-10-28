@@ -49,6 +49,7 @@ fun DashboardScreen(
     onScorecard: () -> Unit,
     onHerbarium: () -> Unit,
     onValidation: () -> Unit,
+    onNutrients: () -> Unit,
     onExportHistory: () -> Unit,
     placementMode: Boolean,
     onTogglePlacement: () -> Unit,
@@ -119,6 +120,12 @@ fun DashboardScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Validation")
+                        }
+                        OutlinedButton(
+                            onClick = onNutrients,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Nutrients")
                         }
                         OutlinedButton(
                             onClick = onExportHistory,

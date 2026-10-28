@@ -17,9 +17,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BaselineEntity::class,
         VarietyTrialEntity::class,
         HerbariumEntity::class,
-        PhEcReading::class
+        PhEcReading::class,
+        NutrientProduct::class,
+        FeedingSchedule::class,
+        FeedingEntry::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,7 +42,7 @@ abstract class SproutDatabase : RoomDatabase() {
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-                    MIGRATION_9_10, MIGRATION_10_11
+                    MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12
                 ).build().also { INSTANCE = it }
             }
 
@@ -166,6 +169,60 @@ abstract class SproutDatabase : RoomDatabase() {
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_10_11_DDL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * DDL executed by [MIGRATION_11_12]. Internal so the unit test can
+         * assert table parity with [NutrientProduct], [FeedingSchedule],
+         * and [FeedingEntry]. New tables only — existing trays gain no
+         * schedules or entries, so no backfill is possible.
+         */
+        internal val MIGRATION_11_12_DDL = listOf(
+            "CREATE TABLE IF NOT EXISTS `nutrients` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL, " +
+                "`brand` TEXT NOT NULL, " +
+                "`npk` TEXT, " +
+                "`form` TEXT NOT NULL, " +
+                "`doseAmount` REAL NOT NULL, " +
+                "`doseUnit` TEXT NOT NULL, " +
+                "`dosePerLiters` REAL NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS `feeding_schedules` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`trayId` INTEGER NOT NULL, " +
+                "`nutrientId` INTEGER NOT NULL, " +
+                "`strengthPercent` INTEGER NOT NULL, " +
+                "`startStage` TEXT, " +
+                "FOREIGN KEY(`trayId`) REFERENCES `trays`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`nutrientId`) REFERENCES `nutrients`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS `index_feeding_schedules_trayId` " +
+                "ON `feeding_schedules` (`trayId`)",
+            "CREATE INDEX IF NOT EXISTS `index_feeding_schedules_nutrientId` " +
+                "ON `feeding_schedules` (`nutrientId`)",
+            "CREATE TABLE IF NOT EXISTS `feeding_entries` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`trayId` INTEGER NOT NULL, " +
+                "`nutrientId` INTEGER NOT NULL, " +
+                "`timestampEpochMs` INTEGER NOT NULL, " +
+                "`strengthPercent` INTEGER NOT NULL, " +
+                "`reservoirLiters` REAL NOT NULL, " +
+                "`doseAmount` REAL, " +
+                "`doseUnit` TEXT NOT NULL, " +
+                "`note` TEXT NOT NULL, " +
+                "FOREIGN KEY(`trayId`) REFERENCES `trays`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`nutrientId`) REFERENCES `nutrients`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS `index_feeding_entries_trayId_timestampEpochMs` " +
+                "ON `feeding_entries` (`trayId`, `timestampEpochMs`)"
+        )
+
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_11_12_DDL.forEach(db::execSQL)
             }
         }
 

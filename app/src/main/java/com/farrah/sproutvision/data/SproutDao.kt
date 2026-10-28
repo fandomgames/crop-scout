@@ -143,4 +143,33 @@ interface SproutDao {
 
     @Update
     suspend fun updateHerbarium(entry: HerbariumEntity)
+
+    // ---- Nutrients: inventory, per-tray schedules, feeding log ----
+
+    @Query("SELECT * FROM nutrients ORDER BY name ASC")
+    fun observeNutrients(): Flow<List<NutrientProduct>>
+
+    @Insert
+    suspend fun insertNutrient(product: NutrientProduct): Long
+
+    @Update
+    suspend fun updateNutrient(product: NutrientProduct)
+
+    @Delete
+    suspend fun deleteNutrient(product: NutrientProduct)
+
+    @Query("SELECT * FROM feeding_schedules WHERE trayId = :trayId")
+    fun observeSchedules(trayId: Long): Flow<List<FeedingSchedule>>
+
+    @Insert
+    suspend fun insertSchedule(schedule: FeedingSchedule): Long
+
+    @Delete
+    suspend fun deleteSchedule(schedule: FeedingSchedule)
+
+    @Query("SELECT * FROM feeding_entries WHERE trayId = :trayId")
+    fun observeFeedings(trayId: Long): Flow<List<FeedingEntry>>
+
+    @Insert
+    suspend fun insertFeeding(entry: FeedingEntry): Long
 }

@@ -364,6 +364,68 @@ class TrayRepository(private val dao: SproutDao) {
         dao.updateHerbarium(entry.copy(anchorX = null, anchorY = null, anchorZ = null))
     }
 
+    // ---- Nutrients: inventory, per-tray schedules, feeding log ----
+
+    fun observeNutrients(): Flow<List<NutrientProduct>> = dao.observeNutrients()
+
+    suspend fun saveNutrient(product: NutrientProduct): Long =
+        if (product.id == 0L) dao.insertNutrient(product)
+        else {
+            dao.updateNutrient(product)
+            product.id
+        }
+
+    suspend fun deleteNutrient(product: NutrientProduct) = dao.deleteNutrient(product)
+
+    fun observeSchedules(trayId: Long): Flow<List<FeedingSchedule>> =
+        dao.observeSchedules(trayId)
+
+    suspend fun saveSchedule(
+        trayId: Long,
+        nutrientId: Long,
+        strengthPercent: Int,
+        startStage: String?
+    ): Long = dao.insertSchedule(
+        FeedingSchedule(
+            trayId = trayId,
+            nutrientId = nutrientId,
+            strengthPercent = strengthPercent,
+            startStage = startStage
+        )
+    )
+
+    suspend fun deleteSchedule(schedule: FeedingSchedule) = dao.deleteSchedule(schedule)
+
+    fun observeFeedings(trayId: Long): Flow<List<FeedingEntry>> =
+        dao.observeFeedings(trayId).map(::feedingLatestFirst)
+
+    /**
+     * Logs a feeding with the dose computed by the pure [computeDose] —
+     * never an LLM. Null when nothing loggable (no nutrient picked).
+     */
+    suspend fun logFeeding(
+        trayId: Long,
+        product: NutrientProduct?,
+        strengthPercent: Int,
+        reservoirLiters: Double,
+        timestampMs: Long = System.currentTimeMillis()
+    ): Long? {
+        if (product == null || !canLogFeeding(product.id, reservoirLiters)) return null
+        return dao.insertFeeding(
+            FeedingEntry(
+                trayId = trayId,
+                nutrientId = product.id,
+                timestampEpochMs = timestampMs,
+                strengthPercent = strengthPercent,
+                reservoirLiters = reservoirLiters,
+                doseAmount = computeDose(
+                    dosageRuleOf(product), reservoirLiters, strengthPercent
+                ),
+                doseUnit = product.doseUnit.ifBlank { "ml" }
+            )
+        )
+    }
+
     private suspend fun insertSeedTrays(seed: List<SeedTray>) {
         for (tray in seed) {
             val id = dao.insertTray(
