@@ -39,6 +39,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.data.TrayEntity
 import com.farrah.sproutvision.settings.AppSettings
+import com.farrah.sproutvision.settings.MIN_DAILY_DETECTION_CAP
+import com.farrah.sproutvision.settings.clampCap
+import com.farrah.sproutvision.settings.countForToday
+import com.farrah.sproutvision.settings.detectionDisplay
+import com.farrah.sproutvision.settings.todayString
 
 private enum class KeyKbField { Gemini, Meta }
 
@@ -50,6 +55,7 @@ fun SettingsScreen(
     onMetaApiKey: (String) -> Unit = {},
     onUseMetaAi: (Boolean) -> Unit = {},
     onUseSamMeasurement: (Boolean) -> Unit = {},
+    onDailyCap: (Int) -> Unit = {},
     onDemoMode: (Boolean) -> Unit,
     onDarkMode: (Boolean) -> Unit,
     onHighlightTray: (Boolean) -> Unit,
@@ -192,6 +198,41 @@ fun SettingsScreen(
                         onCheckedChange = onUseSamMeasurement,
                         enabled = settings.useMetaAi
                     )
+                }
+
+                Spacer(Modifier.height(24.dp))
+                Text("Detections today", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    detectionDisplay(
+                        countForToday(
+                            settings.detectionDay,
+                            settings.detectionsToday,
+                            todayString()
+                        ),
+                        settings.dailyDetectionCap
+                    ),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "One detection = one scan admitted to SAM. At the daily cap, " +
+                        "SAM stops until tomorrow (Spark-only verdicts); raising the " +
+                        "cap re-enables it today.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Daily cap", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = { onDailyCap(settings.dailyDetectionCap - 1) },
+                        enabled = settings.dailyDetectionCap > MIN_DAILY_DETECTION_CAP
+                    ) { Text("-") }
+                    Text(
+                        "${clampCap(settings.dailyDetectionCap)}/day",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = { onDailyCap(settings.dailyDetectionCap + 1) }) { Text("+") }
                 }
 
                 Spacer(Modifier.height(24.dp))

@@ -48,6 +48,11 @@ import com.farrah.sproutvision.reminders.ReminderScheduler
 import com.farrah.sproutvision.settings.AppSettings
 import com.farrah.sproutvision.settings.MAX_TIMING_SAMPLES
 import com.farrah.sproutvision.settings.SettingsStore
+import com.farrah.sproutvision.settings.countForToday
+import com.farrah.sproutvision.settings.limitReachedNote
+import com.farrah.sproutvision.settings.samAllowed
+import com.farrah.sproutvision.settings.shouldRecordDetection
+import com.farrah.sproutvision.settings.todayString
 import com.farrah.sproutvision.util.ScanCsvRow
 import com.farrah.sproutvision.util.ScanExportResult
 import com.farrah.sproutvision.util.ScanHistoryExport
@@ -275,6 +280,10 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { settingsStore.setUseSamMeasurement(enabled) }
     }
 
+    fun setDailyDetectionCap(cap: Int) {
+        viewModelScope.launch { settingsStore.setDailyDetectionCap(cap) }
+    }
+
     fun setDemoMode(enabled: Boolean) {
         // Demo mode only switches the analyzer — it never plants trays.
         // Sample data is opt-in via Settings → Load demo trays.
@@ -332,6 +341,8 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     /** Live viewfinder coaching ("Too close…"), null when framing is fine. */
     var framingAdviceNow by mutableStateOf<String?>(null)
     private var analyzeJob: Job? = null
+    /** Scan stamp already counted today (detections count once per scan). */
+    private var lastCountedScanStamp: Long? = null
     /** Serializes 9:16 toggle flips so rapid taps can't race. */
     private val verticalToggleMutex = Mutex()
 
@@ -443,8 +454,23 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
                 // network calls when off, and SAM is inert when Meta is
                 // off (the Gemini path below is untouched).
                 val growOut = tray.growIntent == GrowIntent.GROW_OUT
+                // Spend guard: one detection per scan admitted to Meta SAM
+                // (counted once per scan stamp, at admission — even a
+                // failed SAM call spent the attempt). At the daily cap SAM
+                // stops and the existing Spark-only fallback carries the
+                // limit note; demo/Gemini/no-key scans never count.
+                val today = todayString(captureAt)
+                val countToday = countForToday(s.detectionDay, s.detectionsToday, today)
+                val wantsSam = useMeta && !s.demoMode && s.useSamMeasurement
+                val capReached = wantsSam && !samAllowed(countToday, s.dailyDetectionCap)
+                if (wantsSam && !capReached &&
+                    shouldRecordDetection(lastCountedScanStamp, captureAt)
+                ) {
+                    settingsStore.recordDetection(today)
+                    lastCountedScanStamp = captureAt
+                }
                 val segmenter: Segmenter? = when {
-                    !s.useMetaAi || !s.useSamMeasurement -> null
+                    !s.useMetaAi || !s.useSamMeasurement || capReached -> null
                     s.demoMode -> DemoSegmenter()
                     s.metaApiKey.isNotBlank() -> MetaSamSegmenter(s.metaApiKey, growOut)
                     else -> DemoSegmenter()
@@ -461,6 +487,9 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
                         samError = e
                         event(samFailureFlag(e))
                     }
+                } else if (capReached) {
+                    samError = SegmentationException(limitReachedNote(s.dailyDetectionCap))
+                    event(samFailureFlag(samError))
                 } else if (s.useMetaAi) {
                     samError = SegmentationException("turned off in Settings")
                     event(samFailureFlag(samError))

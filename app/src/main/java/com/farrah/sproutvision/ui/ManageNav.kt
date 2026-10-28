@@ -218,6 +218,7 @@ fun ManageNav(vm: SproutViewModel) {
                 onMetaApiKey = vm::setMetaApiKey,
                 onUseMetaAi = vm::setUseMetaAi,
                 onUseSamMeasurement = vm::setUseSamMeasurement,
+                onDailyCap = vm::setDailyDetectionCap,
                 onDemoMode = vm::setDemoMode,
                 onDarkMode = vm::setDarkMode,
                 onHighlightTray = vm::setHighlightTray,

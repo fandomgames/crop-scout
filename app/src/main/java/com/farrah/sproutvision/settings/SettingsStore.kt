@@ -3,6 +3,7 @@ package com.farrah.sproutvision.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,13 @@ data class AppSettings(
     val recentGeminiMs: List<Long> = emptyList(),
     /** Custom seed varieties remembered from saved trays (auto-save). */
     val customVarieties: List<String> = emptyList(),
-    val notificationsEnabled: Boolean = true
+    val notificationsEnabled: Boolean = true,
+    /** Local calendar day (yyyy-MM-dd) the detection count belongs to. */
+    val detectionDay: String = "",
+    /** Detections recorded on [detectionDay]; stale days read as zero. */
+    val detectionsToday: Int = 0,
+    /** Spend guard: max SAM-admitted detections per day. */
+    val dailyDetectionCap: Int = DEFAULT_DAILY_DETECTION_CAP
 )
 
 class SettingsStore(private val context: Context) {
@@ -59,6 +66,9 @@ class SettingsStore(private val context: Context) {
     private val keyRecentGeminiMs = stringPreferencesKey("recent_gemini_ms")
     private val keyCustomVarieties = stringPreferencesKey("custom_varieties")
     private val keyNotifications = booleanPreferencesKey("notifications_enabled")
+    private val keyDetectionDay = stringPreferencesKey("detection_day")
+    private val keyDetectionsToday = intPreferencesKey("detections_today")
+    private val keyDailyCap = intPreferencesKey("daily_detection_cap")
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -75,7 +85,10 @@ class SettingsStore(private val context: Context) {
             recentDemoMs = parseMsList(prefs[keyRecentDemoMs]),
             recentGeminiMs = parseMsList(prefs[keyRecentGeminiMs]),
             customVarieties = parseCustomVarieties(prefs[keyCustomVarieties]),
-            notificationsEnabled = prefs[keyNotifications] ?: true
+            notificationsEnabled = prefs[keyNotifications] ?: true,
+            detectionDay = prefs[keyDetectionDay].orEmpty(),
+            detectionsToday = prefs[keyDetectionsToday] ?: 0,
+            dailyDetectionCap = prefs[keyDailyCap] ?: DEFAULT_DAILY_DETECTION_CAP
         )
     }
 
@@ -129,6 +142,23 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setNotificationsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[keyNotifications] = enabled }
+    }
+
+    suspend fun setDailyDetectionCap(cap: Int) {
+        context.dataStore.edit { it[keyDailyCap] = clampCap(cap) }
+    }
+
+    /** Records one detection in a single atomic edit (rollover-aware). */
+    suspend fun recordDetection(today: String) {
+        context.dataStore.edit { prefs ->
+            val (day, count) = recordTransition(
+                prefs[keyDetectionDay].orEmpty(),
+                prefs[keyDetectionsToday] ?: 0,
+                today
+            )
+            prefs[keyDetectionDay] = day
+            prefs[keyDetectionsToday] = count
+        }
     }
 
     /** Remembers a custom variety; blanks, defaults, and dupes are no-ops. */
