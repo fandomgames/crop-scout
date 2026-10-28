@@ -30,6 +30,7 @@ sealed interface ManageScreen {
     data object Settings : ManageScreen
     data object Scorecard : ManageScreen
     data object Herbarium : ManageScreen
+    data object Validation : ManageScreen
     data class Detail(val trayId: Long) : ManageScreen
     data class History(val trayId: Long) : ManageScreen
     data class HerbariumDetail(val entryId: Long) : ManageScreen
@@ -63,6 +64,7 @@ fun ManageNav(vm: SproutViewModel) {
             onSettings = { screen = ManageScreen.Settings },
             onScorecard = { screen = ManageScreen.Scorecard },
             onHerbarium = { screen = ManageScreen.Herbarium },
+            onValidation = { screen = ManageScreen.Validation },
             placementMode = vm.placementMode,
             onTogglePlacement = { vm.placementMode = !vm.placementMode },
             onExportHistory = {
@@ -146,6 +148,14 @@ fun ManageNav(vm: SproutViewModel) {
             ScorecardScreen(
                 scorecards = scorecards,
                 onSaveTrial = vm::saveTrial,
+                onBack = { screen = ManageScreen.Dashboard },
+                onClose = { vm.manageVisible = false }
+            )
+        }
+
+        is ManageScreen.Validation -> {
+            BackHandler { screen = ManageScreen.Dashboard }
+            ValidationScreen(
                 onBack = { screen = ManageScreen.Dashboard },
                 onClose = { vm.manageVisible = false }
             )

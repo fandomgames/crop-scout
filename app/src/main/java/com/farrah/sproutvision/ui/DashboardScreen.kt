@@ -48,6 +48,7 @@ fun DashboardScreen(
     onSettings: () -> Unit,
     onScorecard: () -> Unit,
     onHerbarium: () -> Unit,
+    onValidation: () -> Unit,
     onExportHistory: () -> Unit,
     placementMode: Boolean,
     onTogglePlacement: () -> Unit,
@@ -112,6 +113,12 @@ fun DashboardScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Herbarium")
+                        }
+                        OutlinedButton(
+                            onClick = onValidation,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Validation")
                         }
                         OutlinedButton(
                             onClick = onExportHistory,

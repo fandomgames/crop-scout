@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "SproutVision-Quest"
 include(":app")
+include(":validation")
