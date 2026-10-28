@@ -78,6 +78,16 @@ class LoadDemoTraysTest {
             throw UnsupportedOperationException()
         override suspend fun deleteHerbarium(entry: HerbariumEntity): Unit =
             throw UnsupportedOperationException()
+        override suspend fun insertPhEcReading(reading: PhEcReading): Long =
+            throw UnsupportedOperationException()
+        override fun observePhEcReadings(trayId: Long): Flow<List<PhEcReading>> = emptyFlow()
+        override suspend fun updatePhEcTargets(
+            trayId: Long,
+            phLow: Double?,
+            phHigh: Double?,
+            ecLow: Double?,
+            ecHigh: Double?
+        ): Unit = throw UnsupportedOperationException()
     }
 
     @Test

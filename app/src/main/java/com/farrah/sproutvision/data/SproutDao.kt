@@ -55,6 +55,27 @@ interface SproutDao {
     @Query("SELECT * FROM scans WHERE trayId = :trayId ORDER BY timestampEpochMs DESC")
     fun observeScans(trayId: Long): Flow<List<ScanEntity>>
 
+    // ---- pH/EC log: manual readings per tray (append-only in v1) ----
+
+    @Insert
+    suspend fun insertPhEcReading(reading: PhEcReading): Long
+
+    // Plain select: newest-first ordering lives in latestFirst (unit-tested).
+    @Query("SELECT * FROM ph_ec_readings WHERE trayId = :trayId")
+    fun observePhEcReadings(trayId: Long): Flow<List<PhEcReading>>
+
+    @Query(
+        "UPDATE trays SET phTargetLow = :low, phTargetHigh = :high, " +
+            "ecTargetLow = :ecLow, ecTargetHigh = :ecHigh WHERE id = :trayId"
+    )
+    suspend fun updatePhEcTargets(
+        trayId: Long,
+        low: Double?,
+        high: Double?,
+        ecLow: Double?,
+        ecHigh: Double?
+    )
+
     @Query("SELECT * FROM scans WHERE trayId = :trayId ORDER BY timestampEpochMs DESC")
     suspend fun getScansOnce(trayId: Long): List<ScanEntity>
 

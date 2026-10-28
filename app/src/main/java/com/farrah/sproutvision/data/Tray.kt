@@ -30,7 +30,13 @@ data class TrayEntity(
     // The rack doesn't move, so saved poses are stable anchors.
     val anchorX: Float? = null,
     val anchorY: Float? = null,
-    val anchorZ: Float? = null
+    val anchorZ: Float? = null,
+    // pH/EC target ranges (null = unset: migrated trays and EC start
+    // blank; new trays carry the basil pH default).
+    val phTargetLow: Double? = DEFAULT_PH_LOW,
+    val phTargetHigh: Double? = DEFAULT_PH_HIGH,
+    val ecTargetLow: Double? = null,
+    val ecTargetHigh: Double? = null
 ) {
     fun hasAnchor(): Boolean = anchorX != null && anchorY != null && anchorZ != null
 }

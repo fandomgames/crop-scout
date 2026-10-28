@@ -238,6 +238,22 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
 
     fun observeScans(trayId: Long) = repository.observeScans(trayId)
 
+    fun observePhEcReadings(trayId: Long) = repository.observePhEcReadings(trayId)
+
+    fun savePhEcReading(trayId: Long, ph: Double?, ec: Double?) {
+        viewModelScope.launch { repository.savePhEcReading(trayId, ph, ec) }
+    }
+
+    fun setPhEcTargets(
+        trayId: Long,
+        low: Double?,
+        high: Double?,
+        ecLow: Double?,
+        ecHigh: Double?
+    ) {
+        viewModelScope.launch { repository.setPhEcTargets(trayId, low, high, ecLow, ecHigh) }
+    }
+
     fun observeScanRecords(trayId: Long) = repository.observeScanRecords(trayId)
 
     fun deleteScan(tray: TrayEntity, scan: ScanEntity) {

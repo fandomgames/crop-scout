@@ -100,6 +100,7 @@ fun ManageNav(vm: SproutViewModel) {
             val tray by vm.observeTray(s.trayId).collectAsStateWithLifecycle(initialValue = null)
             val stages by vm.observeStages(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val scans by vm.observeScans(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
+            val readings by vm.observePhEcReadings(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val baseline by vm.observeBaseline(s.trayId)
                 .collectAsStateWithLifecycle(initialValue = null)
             BackHandler { screen = ManageScreen.Dashboard }
@@ -137,7 +138,12 @@ fun ManageNav(vm: SproutViewModel) {
                     onDeleteScan = { vm.deleteScan(current, it) },
                     onHistory = { screen = ManageScreen.History(current.id) },
                     baseline = baseline,
-                    onSnapshotBaseline = { vm.snapshotBaseline(current) }
+                    onSnapshotBaseline = { vm.snapshotBaseline(current) },
+                    readings = readings,
+                    onSaveReading = { ph, ec -> vm.savePhEcReading(current.id, ph, ec) },
+                    onSetTargets = { low, high, ecLow, ecHigh ->
+                        vm.setPhEcTargets(current.id, low, high, ecLow, ecHigh)
+                    }
                 )
             }
         }

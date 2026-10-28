@@ -3,6 +3,7 @@ package com.farrah.sproutvision.data
 import com.farrah.sproutvision.analyze.AnalysisResult
 import com.farrah.sproutvision.analyze.PlantIdentification
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class TrayRepository(private val dao: SproutDao) {
 
@@ -144,6 +145,38 @@ class TrayRepository(private val dao: SproutDao) {
     fun observeScans(trayId: Long): Flow<List<ScanEntity>> = dao.observeScans(trayId)
 
     fun observeScanRecords(trayId: Long): Flow<List<ScanRecordEntity>> = dao.getForTray(trayId)
+
+    /** pH/EC readings newest-first (ordering lives in latestFirst). */
+    fun observePhEcReadings(trayId: Long): Flow<List<PhEcReading>> =
+        dao.observePhEcReadings(trayId).map(::latestFirst)
+
+    /** Appends a reading; null when empty (nothing to save). */
+    suspend fun savePhEcReading(
+        trayId: Long,
+        ph: Double?,
+        ec: Double?,
+        timestampMs: Long = System.currentTimeMillis(),
+        note: String = ""
+    ): Long? {
+        if (!canSavePhEc(ph, ec)) return null
+        return dao.insertPhEcReading(
+            PhEcReading(
+                trayId = trayId,
+                timestampEpochMs = timestampMs,
+                ph = ph,
+                ec = ec,
+                note = note
+            )
+        )
+    }
+
+    suspend fun setPhEcTargets(
+        trayId: Long,
+        low: Double?,
+        high: Double?,
+        ecLow: Double?,
+        ecHigh: Double?
+    ) = dao.updatePhEcTargets(trayId, low, high, ecLow, ecHigh)
 
     fun observeAllScans(): Flow<List<ScanEntity>> = dao.observeAllScans()
 

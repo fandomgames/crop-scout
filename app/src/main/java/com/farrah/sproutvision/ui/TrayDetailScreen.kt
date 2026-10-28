@@ -57,8 +57,20 @@ import com.farrah.sproutvision.data.GrowIntent
 import com.farrah.sproutvision.data.GrowthStage
 import com.farrah.sproutvision.data.ScanEntity
 import com.farrah.sproutvision.data.StageEntryEntity
+import com.farrah.sproutvision.data.PhEcReading
 import com.farrah.sproutvision.data.TrayEntity
 import com.farrah.sproutvision.data.VarietyDefaults
+import com.farrah.sproutvision.data.canSavePhEc
+import com.farrah.sproutvision.data.formatPhEc
+import com.farrah.sproutvision.data.isOutOfRange
+import com.farrah.sproutvision.data.latestReading
+import com.farrah.sproutvision.data.rangeSuffix
+import com.farrah.sproutvision.data.stepReadingEc
+import com.farrah.sproutvision.data.stepReadingPh
+import com.farrah.sproutvision.data.stepTargetEcHigh
+import com.farrah.sproutvision.data.stepTargetEcLow
+import com.farrah.sproutvision.data.stepTargetPhHigh
+import com.farrah.sproutvision.data.stepTargetPhLow
 import com.farrah.sproutvision.util.MILLIS_PER_DAY
 import com.farrah.sproutvision.util.daysUntil
 import com.farrah.sproutvision.util.formatDate
@@ -90,7 +102,10 @@ fun TrayDetailScreen(
     onDeleteScan: (ScanEntity) -> Unit,
     onHistory: () -> Unit,
     baseline: BaselineEntity?,
-    onSnapshotBaseline: () -> Unit
+    onSnapshotBaseline: () -> Unit,
+    readings: List<PhEcReading>,
+    onSaveReading: (ph: Double?, ec: Double?) -> Unit,
+    onSetTargets: (phLow: Double?, phHigh: Double?, ecLow: Double?, ecHigh: Double?) -> Unit
 ) {
     var notes by remember(tray.id) { mutableStateOf(tray.notes) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -504,6 +519,14 @@ fun TrayDetailScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
+            PhEcSection(
+                tray = tray,
+                readings = readings,
+                onSaveReading = onSaveReading,
+                onSetTargets = onSetTargets
+            )
+            Spacer(Modifier.height(16.dp))
+
             Text("Notes", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -603,6 +626,180 @@ private fun ScanRowTraceField(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
+
+/**
+ * Per-tray manual pH/EC log: latest reading, an Add-reading composer
+ * (hands-only steppers, date auto-filled to today), editable target
+ * ranges, and newest-first history. Log only — readings never feed
+ * the verdict. Append-only in v1 (no edit or delete).
+ */
+@Composable
+private fun PhEcSection(
+    tray: TrayEntity,
+    readings: List<PhEcReading>,
+    onSaveReading: (ph: Double?, ec: Double?) -> Unit,
+    onSetTargets: (phLow: Double?, phHigh: Double?, ecLow: Double?, ecHigh: Double?) -> Unit
+) {
+    var ph by remember(tray.id) { mutableStateOf<Double?>(null) }
+    var ec by remember(tray.id) { mutableStateOf<Double?>(null) }
+    val todayMs = remember { System.currentTimeMillis() }
+    val latest = remember(readings) { latestReading(readings) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("pH / EC log", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (latest == null) "Latest: —"
+            else "Latest: pH ${formatPhEc(latest.ph)} · EC ${formatPhEc(latest.ec)} · " +
+                formatDate(latest.timestampEpochMs),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "New reading · ${formatDate(todayMs)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        PhEcStepperRow(
+            label = "pH",
+            value = formatPhEc(ph),
+            onMinus = { ph = stepReadingPh(ph, false) },
+            onPlus = { ph = stepReadingPh(ph, true) }
+        )
+        PhEcStepperRow(
+            label = "EC (mS/cm)",
+            value = formatPhEc(ec),
+            onMinus = { ec = stepReadingEc(ec, false) },
+            onPlus = { ec = stepReadingEc(ec, true) }
+        )
+        Button(
+            onClick = { onSaveReading(ph, ec); ph = null; ec = null },
+            enabled = canSavePhEc(ph, ec)
+        ) {
+            Text("Save reading")
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Target ranges",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        PhEcStepperRow(
+            label = "pH low",
+            value = formatPhEc(tray.phTargetLow),
+            onMinus = {
+                onSetTargets(
+                    stepTargetPhLow(tray.phTargetLow, false),
+                    tray.phTargetHigh, tray.ecTargetLow, tray.ecTargetHigh
+                )
+            },
+            onPlus = {
+                onSetTargets(
+                    stepTargetPhLow(tray.phTargetLow, true),
+                    tray.phTargetHigh, tray.ecTargetLow, tray.ecTargetHigh
+                )
+            }
+        )
+        PhEcStepperRow(
+            label = "pH high",
+            value = formatPhEc(tray.phTargetHigh),
+            onMinus = {
+                onSetTargets(
+                    tray.phTargetLow,
+                    stepTargetPhHigh(tray.phTargetHigh, false), tray.ecTargetLow, tray.ecTargetHigh
+                )
+            },
+            onPlus = {
+                onSetTargets(
+                    tray.phTargetLow,
+                    stepTargetPhHigh(tray.phTargetHigh, true), tray.ecTargetLow, tray.ecTargetHigh
+                )
+            }
+        )
+        PhEcStepperRow(
+            label = "EC low",
+            value = formatPhEc(tray.ecTargetLow),
+            onMinus = {
+                onSetTargets(
+                    tray.phTargetLow, tray.phTargetHigh,
+                    stepTargetEcLow(tray.ecTargetLow, false), tray.ecTargetHigh
+                )
+            },
+            onPlus = {
+                onSetTargets(
+                    tray.phTargetLow, tray.phTargetHigh,
+                    stepTargetEcLow(tray.ecTargetLow, true), tray.ecTargetHigh
+                )
+            }
+        )
+        PhEcStepperRow(
+            label = "EC high",
+            value = formatPhEc(tray.ecTargetHigh),
+            onMinus = {
+                onSetTargets(
+                    tray.phTargetLow, tray.phTargetHigh, tray.ecTargetLow,
+                    stepTargetEcHigh(tray.ecTargetHigh, false)
+                )
+            },
+            onPlus = {
+                onSetTargets(
+                    tray.phTargetLow, tray.phTargetHigh, tray.ecTargetLow,
+                    stepTargetEcHigh(tray.ecTargetHigh, true)
+                )
+            }
+        )
+        if (readings.isEmpty()) {
+            Text(
+                "No readings yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            readings.forEach { reading ->
+                PhEcReadingRow(reading = reading, tray = tray)
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhEcStepperRow(
+    label: String,
+    value: String,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        TextButton(onClick = onMinus) { Text("-") }
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = onPlus) { Text("+") }
+    }
+}
+
+@Composable
+private fun PhEcReadingRow(reading: PhEcReading, tray: TrayEntity) {
+    val flagged = isOutOfRange(reading.ph, tray.phTargetLow, tray.phTargetHigh) ||
+        isOutOfRange(reading.ec, tray.ecTargetLow, tray.ecTargetHigh)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = formatDate(reading.timestampEpochMs) +
+                " · pH ${formatPhEc(reading.ph)}" +
+                rangeSuffix(reading.ph, tray.phTargetLow, tray.phTargetHigh) +
+                " · EC ${formatPhEc(reading.ec)}" +
+                rangeSuffix(reading.ec, tray.ecTargetLow, tray.ecTargetHigh),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (flagged) MaterialTheme.colorScheme.error else Color.Unspecified
+        )
+        if (reading.note.isNotBlank()) {
+            Text(
+                reading.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

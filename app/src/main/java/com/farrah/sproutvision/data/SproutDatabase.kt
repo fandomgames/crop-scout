@@ -16,9 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ScanRecordEntity::class,
         BaselineEntity::class,
         VarietyTrialEntity::class,
-        HerbariumEntity::class
+        HerbariumEntity::class,
+        PhEcReading::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,7 +38,8 @@ abstract class SproutDatabase : RoomDatabase() {
                     "sprout_vision.db"
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                    MIGRATION_9_10
                 ).build().also { INSTANCE = it }
             }
 
@@ -116,6 +118,37 @@ abstract class SproutDatabase : RoomDatabase() {
         private val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_8_9_DDL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * DDL executed by [MIGRATION_9_10]. Internal so the unit test can
+         * assert table parity with [PhEcReading] and that the tray target
+         * columns are nullable with no default: old trays read back null
+         * ranges (blank, never flagged). No backfill — fake readings
+         * would be worse than none.
+         */
+        internal val MIGRATION_9_10_DDL = listOf(
+            "CREATE TABLE IF NOT EXISTS `ph_ec_readings` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`trayId` INTEGER NOT NULL, " +
+                "`timestampEpochMs` INTEGER NOT NULL, " +
+                "`ph` REAL, " +
+                "`ec` REAL, " +
+                "`note` TEXT NOT NULL, " +
+                "FOREIGN KEY(`trayId`) REFERENCES `trays`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS `index_ph_ec_readings_trayId_timestampEpochMs` " +
+                "ON `ph_ec_readings` (`trayId`, `timestampEpochMs`)",
+            "ALTER TABLE `trays` ADD COLUMN `phTargetLow` REAL",
+            "ALTER TABLE `trays` ADD COLUMN `phTargetHigh` REAL",
+            "ALTER TABLE `trays` ADD COLUMN `ecTargetLow` REAL",
+            "ALTER TABLE `trays` ADD COLUMN `ecTargetHigh` REAL"
+        )
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_10_DDL.forEach(db::execSQL)
             }
         }
 
