@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VarietyTrialEntity::class,
         HerbariumEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,7 +37,7 @@ abstract class SproutDatabase : RoomDatabase() {
                     "sprout_vision.db"
                 ).addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9
                 ).build().also { INSTANCE = it }
             }
 
@@ -95,6 +95,27 @@ abstract class SproutDatabase : RoomDatabase() {
         private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_7_8_DDL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * DDL executed by [MIGRATION_8_9]. Internal so the unit test can
+         * assert column parity with [ScanEntity] and [ScanRecordEntity].
+         * Nullable ADD COLUMNs only: pre-trace rows read back nulls and
+         * render as —. No backfill — fake hashes would be worse than none.
+         */
+        internal val MIGRATION_8_9_DDL = listOf(
+            "ALTER TABLE `scans` ADD COLUMN `modelsUsed` TEXT",
+            "ALTER TABLE `scans` ADD COLUMN `samCoverage` INTEGER",
+            "ALTER TABLE `scans` ADD COLUMN `imageHash` TEXT",
+            "ALTER TABLE `scan_records` ADD COLUMN `modelsUsed` TEXT",
+            "ALTER TABLE `scan_records` ADD COLUMN `samCoverage` INTEGER",
+            "ALTER TABLE `scan_records` ADD COLUMN `imageHash` TEXT"
+        )
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_9_DDL.forEach(db::execSQL)
             }
         }
 

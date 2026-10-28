@@ -20,7 +20,13 @@ data class AnalysisResult(
     /** Measured coverage 0–100 from the segmenter, null when unavailable. */
     val samCoverage: Int? = null,
     /** Which segmenter measured [samCoverage], null when unavailable. */
-    val samSource: SegmentationSource? = null
+    val samSource: SegmentationSource? = null,
+    /** Trace: models label derived at scan time, null for pre-trace results. */
+    val modelsUsed: String? = null,
+    /** Trace: SHA-256 hex of the captured JPEG bytes, null for pre-trace results. */
+    val imageHash: String? = null,
+    /** Trace: capture timestamp ms, null for pre-trace results. */
+    val scannedAtEpochMs: Long? = null
 )
 
 /** Normalized [x0, y0, x1, y1] bounding box, origin top-left, 0-1000 range. */

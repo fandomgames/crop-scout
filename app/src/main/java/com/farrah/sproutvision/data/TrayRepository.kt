@@ -92,7 +92,10 @@ class TrayRepository(private val dao: SproutDao) {
                 coveragePercent = result.coveragePercent,
                 issues = result.issues.joinToString("; "),
                 recommendation = result.recommendation,
-                isDemo = result.isDemo
+                isDemo = result.isDemo,
+                modelsUsed = result.modelsUsed,
+                samCoverage = result.samCoverage,
+                imageHash = result.imageHash
             )
         )
         dao.insert(
@@ -102,7 +105,10 @@ class TrayRepository(private val dao: SproutDao) {
                 healthPct = result.healthScore,
                 coveragePct = result.coveragePercent,
                 issues = result.issues.joinToString("; "),
-                photoPath = photoPath
+                photoPath = photoPath,
+                modelsUsed = result.modelsUsed,
+                samCoverage = result.samCoverage,
+                imageHash = result.imageHash
             )
         )
         dao.updateTray(

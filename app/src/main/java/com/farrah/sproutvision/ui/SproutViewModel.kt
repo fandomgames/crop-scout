@@ -19,9 +19,12 @@ import com.farrah.sproutvision.analyze.MetaPlantIdentifier
 import com.farrah.sproutvision.analyze.MetaSamSegmenter
 import com.farrah.sproutvision.analyze.Segmentation
 import com.farrah.sproutvision.analyze.SegmentationException
+import com.farrah.sproutvision.analyze.SegmentationSource
 import com.farrah.sproutvision.analyze.Segmenter
 import com.farrah.sproutvision.analyze.overlayBitmap
 import com.farrah.sproutvision.analyze.samFailureFlag
+import com.farrah.sproutvision.analyze.sha256Hex
+import com.farrah.sproutvision.analyze.traceModelsLabel
 import com.farrah.sproutvision.analyze.PlantAnalyzer
 import com.farrah.sproutvision.analyze.PlantIdentification
 import com.farrah.sproutvision.analyze.selectPlantIdentifier
@@ -499,6 +502,19 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
                 } else if (samError != null && s.useMetaAi) {
                     result = result.copy(issues = result.issues + samFailureFlag(samError))
                 }
+                // Pinned verdict trace: models derived from the branch that
+                // ran, hash over the captured (full-res) bytes. Unconditional
+                // — even a no-tray verdict carries its receipts.
+                result = result.copy(
+                    modelsUsed = traceModelsLabel(
+                        demo = demo,
+                        useMeta = useMeta,
+                        samMeasured = seg?.source == SegmentationSource.META,
+                        samErrorDetail = samError?.message
+                    ),
+                    imageHash = sha256Hex(imageBytes),
+                    scannedAtEpochMs = captureAt
+                )
                 pendingAnalysis = result
                 lastResults[tray.id] = result
                 val tookMs = SystemClock.elapsedRealtime() - analyzeStartedAtMs

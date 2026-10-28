@@ -79,7 +79,13 @@ data class ScanEntity(
     val coveragePercent: Int,
     val issues: String = "",
     val recommendation: String = "",
-    val isDemo: Boolean = true
+    val isDemo: Boolean = true,
+    /** Trace: models label, null for scans saved before the trace feature. */
+    val modelsUsed: String? = null,
+    /** Trace: SAM-measured coverage, null when unavailable or pre-trace. */
+    val samCoverage: Int? = null,
+    /** Trace: SHA-256 hex of the captured JPEG bytes, null for pre-trace scans. */
+    val imageHash: String? = null
 )
 
 class Converters {

@@ -1,5 +1,6 @@
 package com.farrah.sproutvision.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.analyze.AnalysisResult
 import com.farrah.sproutvision.analyze.SegmentationSource
+import com.farrah.sproutvision.analyze.VerdictTrace
+import com.farrah.sproutvision.analyze.formatVerdictTrace
+import com.farrah.sproutvision.analyze.verdictTrace
 import com.farrah.sproutvision.data.TrayEntity
 import com.farrah.sproutvision.util.daysSince
 
@@ -39,6 +46,7 @@ fun VerdictCard(
 ) {
     val day = remember(tray.id, tray.seededAtEpochMs) { daysSince(tray.seededAtEpochMs) }
     val topIssue = result.issues.firstOrNull()
+    var traceExpanded by remember { mutableStateOf(false) }
     val healthColor = when {
         result.healthScore >= 80 -> Color(0xFF7CFC00)
         result.healthScore >= 60 -> Color(0xFFFFB300)
@@ -46,7 +54,7 @@ fun VerdictCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().clickable { traceExpanded = !traceExpanded },
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D3311))
     ) {
         Column(
@@ -140,6 +148,58 @@ fun VerdictCard(
                     color = Color(0xFFC8E6C9)
                 )
             }
+            VerdictTraceBlock(
+                trace = result.verdictTrace(),
+                expanded = traceExpanded
+            )
         }
+    }
+}
+
+/**
+ * Pinned verdict trace: models, SAM coverage, timestamp, image hash.
+ * Read-only receipts; collapsed by default so the card layout is
+ * unchanged until tapped. Same fields as the history trace.
+ */
+@Composable
+private fun VerdictTraceBlock(
+    trace: VerdictTrace,
+    expanded: Boolean
+) {
+    val display = remember(trace) { formatVerdictTrace(trace) }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = if (expanded) "Verdict trace ▾" else "Verdict trace ▸",
+        style = MaterialTheme.typography.bodySmall,
+        color = Color(0xFFC8E6C9)
+    )
+    if (expanded) {
+        Spacer(Modifier.height(4.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            VerdictTraceField("Models", display.models)
+            VerdictTraceField("SAM coverage", display.coverage)
+            VerdictTraceField("Scanned", display.timestamp)
+            VerdictTraceField("Image hash", display.imageHash)
+        }
+    }
+}
+
+@Composable
+private fun VerdictTraceField(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFFC8E6C9)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White
+        )
     }
 }
