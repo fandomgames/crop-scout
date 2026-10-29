@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.data.TrayEntity
 import com.farrah.sproutvision.settings.AppSettings
+import com.farrah.sproutvision.util.formatDate
 import com.farrah.sproutvision.settings.MIN_DAILY_DETECTION_CAP
 import com.farrah.sproutvision.settings.clampCap
 import com.farrah.sproutvision.settings.countForToday
@@ -46,6 +47,13 @@ import com.farrah.sproutvision.settings.detectionDisplay
 import com.farrah.sproutvision.settings.todayString
 
 private enum class KeyKbField { Gemini, Meta }
+
+/**
+ * Subtitle for a Settings scan-photos row: last scan date, or the
+ * no-scans placeholder for trays without history.
+ */
+internal fun scanPhotosSubtitle(lastAnalyzedAtEpochMs: Long?): String =
+    lastAnalyzedAtEpochMs?.let { "Last scan ${formatDate(it)}" } ?: "No scans yet"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +77,7 @@ fun SettingsScreen(
     onDeleteTray: (TrayEntity) -> Unit,
     onClearData: () -> Unit,
     onLoadDemoTrays: () -> Unit,
+    onViewScanPhotos: (Long) -> Unit = {},
     onBack: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -370,6 +379,41 @@ fun SettingsScreen(
                         onCheckedChange = onHideViewfinder,
                         enabled = settings.verticalVideo
                     )
+                }
+
+                Spacer(Modifier.height(24.dp))
+                Text("Scan photos", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Browse each tray's scan photo history.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                if (trays.isEmpty()) {
+                    Text(
+                        "No trays yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    trays.forEach { tray ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(tray.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    scanPhotosSubtitle(tray.lastAnalyzedAtEpochMs),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { onViewScanPhotos(tray.id) }) {
+                                Text("Photos")
+                            }
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(24.dp))

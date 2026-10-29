@@ -37,6 +37,13 @@ sealed interface ManageScreen {
     data class HerbariumDetail(val entryId: Long) : ManageScreen
 }
 
+/**
+ * Settings "Scan photos" shortcut target: the tray's existing photo
+ * history (Manage → History), reused, never duplicated. Read-only
+ * there — deletes stay in TrayDetail and Manage with their confirms.
+ */
+internal fun scanPhotosTarget(trayId: Long): ManageScreen = ManageScreen.History(trayId)
+
 @Composable
 fun ManageNav(vm: SproutViewModel) {
     var screen by remember { mutableStateOf<ManageScreen>(ManageScreen.Dashboard) }
@@ -249,6 +256,7 @@ fun ManageNav(vm: SproutViewModel) {
         is ManageScreen.Settings -> {
             BackHandler { screen = ManageScreen.Dashboard }
             SettingsScreen(
+                onViewScanPhotos = { screen = scanPhotosTarget(it) },
                 settings = settings,
                 onApiKey = vm::setApiKey,
                 onMetaApiKey = vm::setMetaApiKey,
