@@ -16,4 +16,45 @@ object ScanPhotoStore {
         file.writeBytes(bytes)
         return file.absolutePath
     }
+
+    fun scansDir(context: Context): File = File(context.filesDir, DIR_NAME)
+
+    /** Deletes one photo file. Null/blank/missing paths are a no-op false. */
+    fun delete(path: String?): Boolean {
+        if (path.isNullOrBlank()) return false
+        return try {
+            File(path).delete()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Deletes every scan photo for one tray (filename prefix match), so
+     * deleting a tray leaves no orphaned JPEGs. Returns files removed.
+     */
+    fun deleteForTray(scansDir: File, trayId: Long): Int =
+        deleteMatching(scansDir) { it.startsWith("${trayId}_") && it.endsWith(".jpg") }
+
+    /** Deletes every scan photo. Returns files removed. */
+    fun deleteAll(scansDir: File): Int =
+        deleteMatching(scansDir) { it.endsWith(".jpg") }
+
+    private fun deleteMatching(scansDir: File, match: (String) -> Boolean): Int {
+        val files = try {
+            scansDir.listFiles()
+        } catch (_: Exception) {
+            null
+        } ?: return 0
+        var removed = 0
+        for (file in files) {
+            if (!match(file.name)) continue
+            try {
+                if (file.delete()) removed++
+            } catch (_: Exception) {
+                // Best-effort cleanup: a locked file stays, the delete stands.
+            }
+        }
+        return removed
+    }
 }

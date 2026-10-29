@@ -103,6 +103,7 @@ fun ManageNav(vm: SproutViewModel) {
             val tray by vm.observeTray(s.trayId).collectAsStateWithLifecycle(initialValue = null)
             val stages by vm.observeStages(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val scans by vm.observeScans(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
+            val records by vm.observeScanRecords(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val readings by vm.observePhEcReadings(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val schedules by vm.observeSchedules(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
             val feedings by vm.observeFeedings(s.trayId).collectAsStateWithLifecycle(initialValue = emptyList())
@@ -119,6 +120,7 @@ fun ManageNav(vm: SproutViewModel) {
                     tray = current,
                     stages = stages,
                     scans = scans,
+                    records = records,
                     onBack = { screen = ManageScreen.Dashboard },
                     onScan = {
                         vm.manageVisible = false

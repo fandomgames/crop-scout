@@ -250,11 +250,18 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun deleteTray(tray: TrayEntity) {
-        viewModelScope.launch { repository.deleteTray(tray) }
+        viewModelScope.launch {
+            repository.deleteTray(tray)
+            // No orphaned JPEGs: the tray's scan photos go with it.
+            ScanPhotoStore.deleteForTray(ScanPhotoStore.scansDir(context), tray.id)
+        }
     }
 
     fun clearAnalysis(tray: TrayEntity) {
-        viewModelScope.launch { repository.clearAnalysis(tray) }
+        viewModelScope.launch {
+            repository.clearAnalysis(tray)
+            ScanPhotoStore.deleteForTray(ScanPhotoStore.scansDir(context), tray.id)
+        }
     }
 
     fun observeScans(trayId: Long) = repository.observeScans(trayId)
@@ -305,7 +312,16 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     fun observeScanRecords(trayId: Long) = repository.observeScanRecords(trayId)
 
     fun deleteScan(tray: TrayEntity, scan: ScanEntity) {
-        viewModelScope.launch { repository.deleteScan(tray, scan) }
+        viewModelScope.launch {
+            repository.deleteScan(tray, scan)
+            // The scan's JPEG is named <trayId>_<timestamp>.jpg by the
+            // single writer, so the delete removes exactly that file.
+            val file = java.io.File(
+                ScanPhotoStore.scansDir(context),
+                ScanPhotoStore.filename(tray.id, scan.timestampEpochMs)
+            )
+            ScanPhotoStore.delete(file.absolutePath)
+        }
     }
 
     fun saveStageEntry(
@@ -325,7 +341,10 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearAllData() {
-        viewModelScope.launch { repository.clearAll() }
+        viewModelScope.launch {
+            repository.clearAll()
+            ScanPhotoStore.deleteAll(ScanPhotoStore.scansDir(context))
+        }
     }
 
     fun setApiKey(key: String) {

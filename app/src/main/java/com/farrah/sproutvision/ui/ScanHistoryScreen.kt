@@ -274,7 +274,8 @@ private fun ScanHistoryPhotoRow(record: ScanRecordEntity, onClick: () -> Unit) {
     }
 }
 
-private fun decodeBitmap(path: String?, sampleSize: Int) =
+/** Shared scan-photo decode: null/blank/missing/corrupt paths read as null, never crash. */
+internal fun decodeBitmap(path: String?, sampleSize: Int) =
     try {
         if (path.isNullOrBlank()) null
         else BitmapFactory.decodeFile(

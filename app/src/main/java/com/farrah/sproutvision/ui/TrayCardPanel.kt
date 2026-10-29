@@ -1,5 +1,6 @@
 package com.farrah.sproutvision.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,12 +24,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.farrah.sproutvision.data.GrowIntent
+import com.farrah.sproutvision.data.SCAN_NO_PHOTO_TEXT
 import com.farrah.sproutvision.data.TrayEntity
+import com.farrah.sproutvision.data.latestScanPhoto
 import com.farrah.sproutvision.ui.theme.SproutVisionTheme
 import com.farrah.sproutvision.util.MILLIS_PER_DAY
 import com.farrah.sproutvision.util.daysSince
@@ -51,6 +55,7 @@ fun trayCardVisible(hasAnchor: Boolean, placementMode: Boolean, cleanMode: Boole
 fun TrayCardRoute(vm: SproutViewModel, trayId: Long) {
     val trays by vm.trays.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val records by vm.observeScanRecords(trayId).collectAsStateWithLifecycle(initialValue = emptyList())
     val tray = trays.firstOrNull { it.id == trayId } ?: return
     val ghost = vm.placementMode && !tray.hasAnchor()
     SproutVisionTheme(darkMode = settings.darkMode) {
@@ -58,6 +63,7 @@ fun TrayCardRoute(vm: SproutViewModel, trayId: Long) {
             tray = tray,
             ghost = ghost,
             expanded = !ghost && vm.expandedCardTrayId == trayId,
+            latestPhotoPath = latestScanPhoto(records),
             onToggleExpand = { vm.toggleCardExpanded(trayId) },
             onScan = { vm.openTrayScan(trayId) },
             onDrop = { vm.dropCardTrayId = trayId }
@@ -70,6 +76,7 @@ fun TrayCardPanel(
     tray: TrayEntity,
     ghost: Boolean,
     expanded: Boolean,
+    latestPhotoPath: String?,
     onToggleExpand: () -> Unit,
     onScan: () -> Unit,
     onDrop: () -> Unit,
@@ -84,7 +91,7 @@ fun TrayCardPanel(
         if (ghost) {
             GhostBody(tray)
         } else if (expanded) {
-            ExpandedBody(tray, onToggleExpand, onScan)
+            ExpandedBody(tray, latestPhotoPath, onToggleExpand, onScan)
         } else {
             CompactBody(tray)
         }
@@ -133,6 +140,7 @@ private fun CompactBody(tray: TrayEntity) {
 @Composable
 private fun ExpandedBody(
     tray: TrayEntity,
+    latestPhotoPath: String?,
     onCollapse: () -> Unit,
     onScan: () -> Unit
 ) {
@@ -162,6 +170,23 @@ private fun ExpandedBody(
             IconButton(onClick = onCollapse) {
                 Icon(Icons.Filled.Close, contentDescription = "Collapse card")
             }
+        }
+        // Latest scan photo on top; no photo reads as placeholder text,
+        // never a fake photo, never a crash.
+        val bitmap = remember(latestPhotoPath) { decodeBitmap(latestPhotoPath, sampleSize = 2) }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = "Latest scan photo for ${tray.name}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+            )
+        } else {
+            Text(
+                text = SCAN_NO_PHOTO_TEXT,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Text(
             text = "Day $day · Health ${tray.lastHealthScore?.let { "$it%" } ?: "—"}",

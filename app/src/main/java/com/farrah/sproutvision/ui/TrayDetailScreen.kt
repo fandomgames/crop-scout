@@ -1,9 +1,11 @@
 package com.farrah.sproutvision.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,7 +48,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -55,7 +59,10 @@ import com.farrah.sproutvision.analyze.verdictTrace
 import com.farrah.sproutvision.data.BaselineEntity
 import com.farrah.sproutvision.data.GrowIntent
 import com.farrah.sproutvision.data.GrowthStage
+import com.farrah.sproutvision.data.SCAN_NO_PHOTO_TEXT
 import com.farrah.sproutvision.data.ScanEntity
+import com.farrah.sproutvision.data.ScanRecordEntity
+import com.farrah.sproutvision.data.scanPhotoPath
 import com.farrah.sproutvision.data.StageEntryEntity
 import com.farrah.sproutvision.data.PhEcReading
 import com.farrah.sproutvision.data.TrayEntity
@@ -83,6 +90,7 @@ import com.farrah.sproutvision.data.stepTargetPhLow
 import com.farrah.sproutvision.util.MILLIS_PER_DAY
 import com.farrah.sproutvision.util.daysUntil
 import com.farrah.sproutvision.util.formatDate
+import com.farrah.sproutvision.util.formatDateTime
 import com.farrah.sproutvision.util.startOfDay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,6 +116,7 @@ fun TrayDetailScreen(
     onClose: () -> Unit,
     onClearAnalysis: () -> Unit,
     scans: List<ScanEntity>,
+    records: List<ScanRecordEntity>,
     onDeleteScan: (ScanEntity) -> Unit,
     onHistory: () -> Unit,
     baseline: BaselineEntity?,
@@ -128,6 +137,7 @@ fun TrayDetailScreen(
     var deletingEntry by remember { mutableStateOf<StageEntryEntity?>(null) }
     var showClearScanConfirm by remember { mutableStateOf(false) }
     var deletingScan by remember { mutableStateOf<ScanEntity?>(null) }
+    var viewingPhoto by remember { mutableStateOf<ScanEntity?>(null) }
     // Harvest confirm, keyed to the tray like notes: backing out clears it.
     var showHarvestConfirm by remember(tray.id) { mutableStateOf(false) }
     var showRemoveCardConfirm by remember(tray.id) { mutableStateOf(false) }
@@ -135,6 +145,7 @@ fun TrayDetailScreen(
     val daysLeft = harvestAt?.let { daysUntil(it) }
     val next = tray.currentStage.next()
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -504,7 +515,9 @@ fun TrayDetailScreen(
                 scans.forEach { scan ->
                     ScanHistoryRow(
                         scan = scan,
-                        onDelete = { deletingScan = scan }
+                        photoPath = scanPhotoPath(records, scan),
+                        onDelete = { deletingScan = scan },
+                        onPhoto = { viewingPhoto = scan }
                     )
                     Spacer(Modifier.height(8.dp))
                 }
@@ -572,10 +585,80 @@ fun TrayDetailScreen(
         }
     }
 
+    // Scan-photo viewer as an inline overlay, NOT a Dialog (Quest window
+    // type mismatch). Photo plus scan details; the trace stays in the
+    // row, unchanged and hash-only — the photo is not in the trace.
+    viewingPhoto?.let { scan ->
+        val path = scanPhotoPath(records, scan)
+        val bitmap = remember(path) { decodeBitmap(path, sampleSize = 1) }
+        Box(
+            modifier = Modifier.fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+                .clickable(onClick = { viewingPhoto = null })
+        ) {
+            Card(
+                modifier = Modifier.fillMaxSize().padding(32.dp)
+                    .clickable(enabled = true, onClick = {})
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = formatDateTime(scan.timestampEpochMs),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { viewingPhoto = null }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close photo")
+                        }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "Scan photo from ${formatDate(scan.timestampEpochMs)}",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
+                        )
+                    } else {
+                        Text(
+                            SCAN_NO_PHOTO_TEXT,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        "Health ${scan.healthScore}/100 · coverage ${scan.coveragePercent}%",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (scan.issues.isNotBlank()) {
+                        Text(
+                            scan.issues,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+    }
+
 }
 
 @Composable
-private fun ScanHistoryRow(scan: ScanEntity, onDelete: () -> Unit) {
+private fun ScanHistoryRow(
+    scan: ScanEntity,
+    photoPath: String?,
+    onDelete: () -> Unit,
+    onPhoto: () -> Unit
+) {
     var traceExpanded by remember(scan.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth().clickable { traceExpanded = !traceExpanded }) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -583,6 +666,35 @@ private fun ScanHistoryRow(scan: ScanEntity, onDelete: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Thumbnail tap opens the photo viewer; row tap still
+                // toggles the trace, unchanged.
+                val thumbnail = remember(photoPath) { decodeBitmap(photoPath, sampleSize = 4) }
+                if (thumbnail != null) {
+                    Image(
+                        bitmap = thumbnail,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(64.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable(onClick = onPhoto)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable(onClick = onPhoto),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "—",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         "${formatDate(scan.timestampEpochMs)} · health ${scan.healthScore}/100",
