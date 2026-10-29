@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,9 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -47,7 +51,11 @@ fun IdLabelRoute(vm: SproutViewModel, entryId: Long) {
             ghost = ghost,
             expanded = !ghost && vm.expandedLabelEntryId == entryId,
             onToggleExpand = { vm.toggleLabelExpanded(entryId) },
-            onDrop = { vm.dropLabelEntryId = entryId }
+            onDrop = { vm.dropLabelEntryId = entryId },
+            onUnpin = {
+                vm.clearHerbariumAnchor(entryId)
+                if (vm.expandedLabelEntryId == entryId) vm.toggleLabelExpanded(entryId)
+            }
         )
     }
 }
@@ -59,6 +67,7 @@ fun IdLabelPanel(
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onDrop: () -> Unit,
+    onUnpin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Ghosts are translucent; tapping one drops it in place, grabbing moves it.
@@ -70,7 +79,7 @@ fun IdLabelPanel(
         if (ghost) {
             LabelGhostBody(entry)
         } else if (expanded) {
-            LabelExpandedBody(entry)
+            LabelExpandedBody(entry, onUnpin)
         } else {
             LabelCompactBody(entry)
         }
@@ -114,13 +123,14 @@ private fun LabelCompactBody(entry: HerbariumEntity) {
 }
 
 @Composable
-private fun LabelExpandedBody(entry: HerbariumEntity) {
+private fun LabelExpandedBody(entry: HerbariumEntity, onUnpin: () -> Unit) {
     // Reuses the existing card, care sheet, and date line — the entry was
     // already filed in the herbarium by the Pin tap, so no second save.
     val bitmap = remember(entry.photoPath) {
         if (entry.photoPath.isNullOrBlank()) null
         else BitmapFactory.decodeFile(entry.photoPath)?.asImageBitmap()
     }
+    var showUnpinConfirm by remember(entry.id) { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp)
             .verticalScroll(rememberScrollState()),
@@ -137,6 +147,36 @@ private fun LabelExpandedBody(entry: HerbariumEntity) {
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        TextButton(onClick = { showUnpinConfirm = true }) {
+            Text("Remove label", color = MaterialTheme.colorScheme.error)
+        }
+        // Single confirm card mirroring the tray-card unlink: Cancel or
+        // Unpin, not double-gated. Unpin clears the anchor only.
+        if (showUnpinConfirm) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "Remove this label?",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        "Unpins the floating label. The herbarium entry — " +
+                            "photo, ID, and care sheet — stays.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showUnpinConfirm = false }) {
+                            Text("Cancel")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { showUnpinConfirm = false; onUnpin() }) {
+                            Text("Unpin", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

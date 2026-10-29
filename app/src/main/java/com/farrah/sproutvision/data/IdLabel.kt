@@ -50,3 +50,11 @@ fun idLabelVisible(hasAnchor: Boolean, placingThis: Boolean, cleanMode: Boolean)
 /** Tap-to-expand toggle for the floating label (tap again to collapse). */
 fun nextExpandedLabel(currentExpandedId: Long?, tappedId: Long): Long? =
     if (currentExpandedId == tappedId) null else tappedId
+
+/**
+ * Pin-section button for a herbarium entry: anchored entries offer to
+ * remove the label, unpinned entries offer to pin it. Unpin only clears
+ * the anchor — the entry itself is never deleted.
+ */
+fun labelPinButton(hasAnchor: Boolean): String =
+    if (hasAnchor) "Remove label" else "Pin label"

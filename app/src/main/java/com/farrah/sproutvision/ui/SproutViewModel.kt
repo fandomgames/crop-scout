@@ -808,6 +808,11 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
         expandedLabelEntryId = nextExpandedLabel(expandedLabelEntryId, entryId)
     }
 
+    /** Re-pin flow: opens label placement for an already-saved entry. */
+    fun pinExistingEntry(entryId: Long) {
+        labelPlacementEntryId = entryId
+    }
+
     fun setTrayAnchor(trayId: Long, x: Float, y: Float, z: Float) {
         viewModelScope.launch { repository.setTrayAnchor(trayId, x, y, z) }
     }

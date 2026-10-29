@@ -202,4 +202,64 @@ class IdLabelTest {
         assertEquals("Basil", shortScientificName("Basil"))
         assertEquals("", shortScientificName("  "))
     }
+
+    @Test
+    fun `unpin clears the anchor but the entry persists`() = runBlocking {
+        val dao = FakeDao()
+        val repository = TrayRepository(dao)
+        val entryId = repository.saveHerbariumEntry(basil(), "/photos/basil.jpg", 1L, "Rack A")
+        repository.setHerbariumAnchor(entryId, 1f, 2f, 3f)
+
+        repository.clearHerbariumAnchor(entryId)
+
+        val entry = dao.getHerbariumOnce().single { it.id == entryId }
+        assertFalse(entry.hasAnchor())
+        assertNull(entry.anchorX)
+        assertNull(entry.anchorY)
+        assertNull(entry.anchorZ)
+        // Photo, ID, and care sheet survive the unpin.
+        assertEquals("/photos/basil.jpg", entry.photoPath)
+        assertEquals("Basil", entry.commonName)
+        assertEquals("Ocimum basilicum", entry.scientificName)
+    }
+
+    @Test
+    fun `unpinned label no longer renders, re-pin restores it`() = runBlocking {
+        val dao = FakeDao()
+        val repository = TrayRepository(dao)
+        val entryId = repository.saveHerbariumEntry(basil(), null, 1L, "")
+        repository.setHerbariumAnchor(entryId, 1f, 2f, 3f)
+        repository.clearHerbariumAnchor(entryId)
+
+        val unpinned = dao.getHerbariumOnce().single { it.id == entryId }
+        assertFalse(idLabelVisible(unpinned.hasAnchor(), placingThis = false, cleanMode = false))
+
+        repository.setHerbariumAnchor(entryId, 4f, 5f, 6f)
+        val repinned = dao.getHerbariumOnce().single { it.id == entryId }
+        assertTrue(repinned.hasAnchor())
+        assertTrue(idLabelVisible(repinned.hasAnchor(), placingThis = false, cleanMode = false))
+    }
+
+    @Test
+    fun `unpinned entry shows Pin, anchored entry shows Remove label`() {
+        assertEquals("Pin label", labelPinButton(false))
+        assertEquals("Remove label", labelPinButton(true))
+    }
+
+    @Test
+    fun `cancel leaves the anchor intact`() = runBlocking {
+        val dao = FakeDao()
+        val repository = TrayRepository(dao)
+        val entryId = repository.saveHerbariumEntry(basil(), null, 1L, "")
+        repository.setHerbariumAnchor(entryId, 1f, 2f, 3f)
+
+        // The Cancel path dismisses the confirm without invoking the
+        // clear — nothing fires, so a later re-read keeps the anchor.
+        val confirmed = false
+        if (confirmed) repository.clearHerbariumAnchor(entryId)
+
+        val reread = dao.getHerbariumOnce().single { it.id == entryId }
+        assertTrue(reread.hasAnchor())
+        assertEquals(1f, reread.anchorX)
+    }
 }

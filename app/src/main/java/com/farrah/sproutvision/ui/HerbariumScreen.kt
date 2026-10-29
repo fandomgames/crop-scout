@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.data.HerbariumEntity
+import com.farrah.sproutvision.data.labelPinButton
 import com.farrah.sproutvision.data.toIdentification
 
 /**
@@ -139,12 +140,15 @@ fun HerbariumDetailScreen(
     entry: HerbariumEntity,
     onBack: () -> Unit,
     onClose: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onPin: () -> Unit,
+    onUnpin: () -> Unit
 ) {
     val bitmap = remember(entry.photoPath) {
         decodeHerbariumBitmap(entry.photoPath, sampleSize = 1)
     }
     var deleteGate by remember(entry.id) { mutableStateOf<ConfirmGate<Unit>>(ConfirmGate.Idle) }
+    var showUnpinConfirm by remember(entry.id) { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -178,6 +182,41 @@ fun HerbariumDetailScreen(
                     entry.locationNote,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+            // Pin section: anchored entries offer Remove label (single
+            // Cancel/Unpin confirm, mirroring the tray-card unlink);
+            // unpinned entries offer Pin label to place it again.
+            TextButton(
+                onClick = { if (entry.hasAnchor()) showUnpinConfirm = true else onPin() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    labelPinButton(entry.hasAnchor()),
+                    color = if (entry.hasAnchor()) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary
+                )
+            }
+            if (showUnpinConfirm && entry.hasAnchor()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Remove this label?", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Unpins the floating label. The herbarium entry — " +
+                                "photo, ID, and care sheet — stays.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { showUnpinConfirm = false }) {
+                                Text("Cancel")
+                            }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { showUnpinConfirm = false; onUnpin() }) {
+                                Text("Unpin", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
             }
             if (deleteGate is ConfirmGate.Staged) {
                 // Removal stages first and applies on a second pinch,

@@ -237,7 +237,9 @@ fun ManageNav(vm: SproutViewModel) {
                     onDelete = {
                         vm.deleteHerbariumEntry(entry)
                         screen = ManageScreen.Herbarium
-                    }
+                    },
+                    onPin = { vm.pinExistingEntry(entry.id) },
+                    onUnpin = { vm.clearHerbariumAnchor(entry.id) }
                 )
             }
         }
