@@ -147,11 +147,10 @@ private fun LabelExpandedBody(entry: HerbariumEntity, onUnpin: () -> Unit) {
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        TextButton(onClick = { showUnpinConfirm = true }) {
-            Text("Remove label", color = MaterialTheme.colorScheme.error)
-        }
         // Single confirm card mirroring the tray-card unlink: Cancel or
-        // Unpin, not double-gated. Unpin clears the anchor only.
+        // Remove label, not double-gated. It swaps into the button's spot
+        // instead of rendering below it — the expanded card is taller than
+        // the panel, so a below-the-button confirm lands off-screen.
         if (showUnpinConfirm) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -171,10 +170,14 @@ private fun LabelExpandedBody(entry: HerbariumEntity, onUnpin: () -> Unit) {
                         }
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { showUnpinConfirm = false; onUnpin() }) {
-                            Text("Unpin", color = MaterialTheme.colorScheme.error)
+                            Text("Remove label", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
+            }
+        } else {
+            TextButton(onClick = { showUnpinConfirm = true }) {
+                Text("Remove label", color = MaterialTheme.colorScheme.error)
             }
         }
     }
