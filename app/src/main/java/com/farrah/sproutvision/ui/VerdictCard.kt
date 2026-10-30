@@ -27,6 +27,7 @@ import com.farrah.sproutvision.analyze.AnalysisResult
 import com.farrah.sproutvision.analyze.SegmentationSource
 import com.farrah.sproutvision.analyze.VerdictTrace
 import com.farrah.sproutvision.analyze.formatVerdictTrace
+import com.farrah.sproutvision.analyze.toggleTraceExpanded
 import com.farrah.sproutvision.analyze.verdictTrace
 import com.farrah.sproutvision.data.TrayEntity
 import com.farrah.sproutvision.util.daysSince
@@ -54,7 +55,7 @@ fun VerdictCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth().clickable { traceExpanded = !traceExpanded },
+        modifier = modifier.fillMaxWidth().clickable { traceExpanded = toggleTraceExpanded(traceExpanded) },
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D3311))
     ) {
         Column(
@@ -84,6 +85,12 @@ fun VerdictCard(
                 text = "TRAY HEALTH",
                 style = MaterialTheme.typography.labelLarge,
                 color = Color(0xFFC8E6C9)
+            )
+            // Trace sits right under the score — at the card's bottom it
+            // fell below the HUD panel fold and read as missing.
+            VerdictTraceBlock(
+                trace = result.verdictTrace(),
+                expanded = traceExpanded
             )
             Spacer(Modifier.height(12.dp))
             Row(
@@ -148,10 +155,6 @@ fun VerdictCard(
                     color = Color(0xFFC8E6C9)
                 )
             }
-            VerdictTraceBlock(
-                trace = result.verdictTrace(),
-                expanded = traceExpanded
-            )
         }
     }
 }

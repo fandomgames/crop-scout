@@ -77,6 +77,13 @@ fun sha256Hex(bytes: ByteArray): String {
 fun AnalysisResult.verdictTrace(): VerdictTrace =
     VerdictTrace(modelsUsed, samCoverage, scannedAtEpochMs, imageHash)
 
+/**
+ * Card-tap toggle for the trace section: pinch expands in place,
+ * pinch again collapses. Pure so the expand/collapse contract is
+ * unit-tested; the card keeps the existing tap interaction.
+ */
+fun toggleTraceExpanded(expanded: Boolean): Boolean = !expanded
+
 /** Trace for a history entry, from its persisted record (old rows: nulls → —). */
 fun ScanRecordEntity.verdictTrace(): VerdictTrace =
     VerdictTrace(modelsUsed, samCoverage, timestamp, imageHash)

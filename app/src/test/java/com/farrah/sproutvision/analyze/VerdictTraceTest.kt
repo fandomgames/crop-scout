@@ -170,4 +170,34 @@ class VerdictTraceTest {
         assertEquals(12345L, trace.timestampMs)
         assertNull(trace.imageHash)
     }
+
+    @Test
+    fun `pinch expands the card trace, second pinch collapses`() {
+        assertEquals(true, toggleTraceExpanded(false))
+        assertEquals(false, toggleTraceExpanded(true))
+    }
+
+    @Test
+    fun `verdict card trace carries the live SAM scan fields`() {
+        val trace = AnalysisResult(
+            variety = "Basil",
+            stage = GrowthStage.LIGHT,
+            healthScore = 80,
+            issues = emptyList(),
+            coveragePercent = 70,
+            recommendation = "",
+            isDemo = false,
+            trayVisible = true,
+            trayBox = null,
+            modelsUsed = "sam-3.1 + muse-spark",
+            samCoverage = 15,
+            imageHash = "ef".repeat(32),
+            scannedAtEpochMs = 999L
+        ).verdictTrace()
+        val display = formatVerdictTrace(trace)
+        assertEquals("sam-3.1 + muse-spark", display.models)
+        assertEquals("15%", display.coverage)
+        assertEquals(formatDateTime(999L), display.timestamp)
+        assertEquals("ef".repeat(32), display.imageHash)
+    }
 }
