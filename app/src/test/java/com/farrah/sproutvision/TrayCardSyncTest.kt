@@ -61,13 +61,26 @@ class TrayCardSyncTest {
     }
 
     @Test
-    fun `ghosts and grab persistence stay placement-only`() {
+    fun `ghosts and tap-to-drop stay placement-only`() {
         val placing = cardTickScope(placing = true)
         assertTrue(placing.trackGhosts)
-        assertTrue(placing.persistGrabs)
+        assertTrue(placing.acceptDrops)
 
         val idle = cardTickScope(placing = false)
         assertFalse(idle.trackGhosts)
-        assertFalse(idle.persistGrabs)
+        assertFalse(idle.acceptDrops)
+    }
+
+    /**
+     * Grab-release persists in ANY mode. Cards and labels stay grabbable
+     * outside placement ("grab to move anytime"), so gating the save on
+     * placement silently discarded off-mode drags: the entity moved, the
+     * database didn't, and the next save — or a relaunch — snapped
+     * everything back to stale anchors (greenhouse 2 cluster/jumps).
+     */
+    @Test
+    fun `grab-release persists outside placement mode too`() {
+        assertTrue(cardTickScope(placing = true).persistGrabs)
+        assertTrue(cardTickScope(placing = false).persistGrabs)
     }
 }

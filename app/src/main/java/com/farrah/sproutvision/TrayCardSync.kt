@@ -39,19 +39,28 @@ internal data class CardTickScope(
     val refreshAnchoredYaw: Boolean,
     /** Glide unanchored ghosts around the view. */
     val trackGhosts: Boolean,
-    /** Persist grab-release poses and ghost tap-to-drops. */
-    val persistGrabs: Boolean
+    /**
+     * Persist grab-release poses. Always on: cards and labels stay
+     * grabbable outside placement mode ("grab to move anytime"), so a
+     * release must save wherever it happens — otherwise the entity
+     * moves, the database doesn't, and the next save (or relaunch)
+     * snaps everything back to stale anchors.
+     */
+    val persistGrabs: Boolean,
+    /** Accept ghost tap-to-drop requests (ghosts only exist in placement). */
+    val acceptDrops: Boolean
 )
 
 /**
  * Card-tick scope matrix. Anchored yaw refreshes on EVERY tick:
  * gating it on placement mode lets billboards go stale, and the next
  * tray-table emission (a save!) then visibly snaps every anchored
- * card at once. Ghost tracking and grab persistence stay
- * placement-only (existing behavior, preserved).
+ * card at once. Ghost tracking and tap-to-drop stay placement-only;
+ * grab-release persistence is unconditional (see [CardTickScope]).
  */
 internal fun cardTickScope(placing: Boolean): CardTickScope = CardTickScope(
     refreshAnchoredYaw = true,
     trackGhosts = placing,
-    persistGrabs = placing
+    persistGrabs = true,
+    acceptDrops = placing
 )

@@ -1337,16 +1337,17 @@ class QuestSproutActivity : AppSystemActivity() {
     }
 
     /**
-     * Placement-mode per-frame work: unplaced ghosts track the view until
-     * grabbed, and every grab-release (or ghost tap) persists the card's
-     * world pose as the tray's anchor.
+     * Per-frame card work: unplaced ghosts track the view until grabbed
+     * (placement mode only), and every grab-release persists the card's
+     * world pose as the tray's anchor — in any mode, so a drag is never
+     * silently lost. Ghost tap-to-drop stays placement-only.
      */
     private fun tickTrayCards() {
         if (trayCards.isEmpty()) return
         // Scope matrix (see cardTickScope): anchored billboards refresh
         // every tick so they never go stale (a stale yaw plus a tray
         // save used to snap every anchored card at once); ghost glides
-        // and grab persistence stay placement-only.
+        // and tap-to-drop stay placement-only, grab-release saves always.
         val scope = cardTickScope(vm.placementMode)
         val viewer = scene.getViewerPose()
         val upright = viewer.q.removePitchAndRoll()
@@ -1379,7 +1380,7 @@ class QuestSproutActivity : AppSystemActivity() {
             }
         }
         // Ghost tap-to-drop: pinch on the ghost drops it in place.
-        if (scope.persistGrabs) {
+        if (scope.acceptDrops) {
             vm.dropCardTrayId?.let { trayId ->
                 vm.dropCardTrayId = null
                 trayCards[trayId]?.let { saveCardPose(trayId, it) }
@@ -1397,8 +1398,8 @@ class QuestSproutActivity : AppSystemActivity() {
      * Per-frame ID-label work, mirroring [tickTrayCards]: anchored labels
      * re-face the viewer every tick (yaw-only billboards, stable world
      * positions for walk-around viewing); the placement ghost tracks the
-     * view, and every grab-release or ghost tap persists the world pose
-     * as the entry's anchor.
+     * view while placing, ghost tap-to-drop stays placement-only, and
+     * every grab-release persists the world pose as the entry's anchor.
      */
     private fun tickIdLabels() {
         if (idLabels.isEmpty()) return
@@ -1432,7 +1433,7 @@ class QuestSproutActivity : AppSystemActivity() {
             }
         }
         // Ghost tap-to-drop: pinch on the ghost drops it in place.
-        if (scope.persistGrabs) {
+        if (scope.acceptDrops) {
             vm.dropLabelEntryId?.let { entryId ->
                 vm.dropLabelEntryId = null
                 idLabels[entryId]?.let { saveLabelPose(entryId, it) }
