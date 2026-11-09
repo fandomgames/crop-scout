@@ -54,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.farrah.sproutvision.analyze.coverageLines
 import com.farrah.sproutvision.analyze.formatVerdictTrace
 import com.farrah.sproutvision.analyze.verdictTrace
 import com.farrah.sproutvision.data.BaselineEntity
@@ -700,9 +701,24 @@ private fun ScanHistoryRow(
                         "${formatDate(scan.timestampEpochMs)} · health ${scan.healthScore}/100",
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    // Method-labelled pair, not one bare "Coverage": the
+                    // estimate carries its analyzer, and a failed SAM reads
+                    // as "SAM: —" — a gap in the series, never a fake 0%.
+                    val lines = remember(scan) {
+                        coverageLines(
+                            scan.coveragePercent,
+                            scan.samCoverage,
+                            scan.modelsUsed,
+                            scan.isDemo
+                        )
+                    }
                     Text(
-                        "${scan.variety} · ${scan.stage.displayName} · ${scan.coveragePercent}%" +
-                            (if (scan.isDemo) " (demo)" else ""),
+                        "${scan.variety} · ${scan.stage.displayName} · ${lines.estimate}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        lines.sam,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

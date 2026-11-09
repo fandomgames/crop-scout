@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.farrah.sproutvision.analyze.coverageLines
 import com.farrah.sproutvision.analyze.formatVerdictTrace
 import com.farrah.sproutvision.analyze.verdictTrace
 import com.farrah.sproutvision.data.ScanRecordEntity
@@ -256,8 +257,24 @@ private fun ScanHistoryPhotoRow(record: ScanRecordEntity, onClick: () -> Unit) {
                     formatDate(record.timestamp),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                // Method-labelled pair, not one bare "coverage": the
+                // estimate carries its analyzer, and a failed SAM reads
+                // as "SAM: —" — a gap in the series, never a fake 0%.
+                val lines = remember(record) {
+                    coverageLines(
+                        record.coveragePct,
+                        record.samCoverage,
+                        record.modelsUsed,
+                        isDemo = record.modelsUsed == "demo"
+                    )
+                }
                 Text(
-                    "Health ${record.healthPct}% · coverage ${record.coveragePct}%",
+                    "Health ${record.healthPct}% · ${lines.estimate}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    lines.sam,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

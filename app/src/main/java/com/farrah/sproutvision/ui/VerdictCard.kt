@@ -24,8 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.farrah.sproutvision.analyze.AnalysisResult
-import com.farrah.sproutvision.analyze.SegmentationSource
 import com.farrah.sproutvision.analyze.VerdictTrace
+import com.farrah.sproutvision.analyze.coverageLines
 import com.farrah.sproutvision.analyze.formatVerdictTrace
 import com.farrah.sproutvision.analyze.toggleTraceExpanded
 import com.farrah.sproutvision.analyze.verdictTrace
@@ -134,18 +134,50 @@ fun VerdictCard(
                     )
                 }
             }
-            if (result.samCoverage != null) {
+            if (result.isDemo) {
+                if (result.samCoverage != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Demo-measured coverage: ${result.samCoverage}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            } else {
+                // Method-labelled pair, each in its own column: the SAM
+                // measurement is always visible (value or —), never mixed
+                // with the analyzer's estimate.
+                val lines = remember(result) {
+                    coverageLines(
+                        result.coveragePercent,
+                        result.samCoverage,
+                        result.modelsUsed,
+                        isDemo = false
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (result.samSource == SegmentationSource.DEMO) {
-                        "Demo-measured coverage: ${result.samCoverage}%"
-                    } else {
-                        "SAM-measured coverage: ${result.samCoverage}%"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = lines.sam,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = lines.estimate,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
             if (result.isDemo) {
                 Spacer(Modifier.height(8.dp))

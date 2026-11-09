@@ -200,4 +200,64 @@ class VerdictTraceTest {
         assertEquals(formatDateTime(999L), display.timestamp)
         assertEquals("ef".repeat(32), display.imageHash)
     }
+
+    @Test
+    fun `SAM run labels measurement and Spark estimate separately`() {
+        val lines = coverageLines(
+            estimatePct = 65,
+            samCoverage = 31,
+            modelsUsed = "sam-3.1 + muse-spark",
+            isDemo = false
+        )
+        assertEquals("SAM: 31%", lines.sam)
+        assertEquals("Spark estimate: 65%", lines.estimate)
+    }
+
+    @Test
+    fun `failed SAM renders a visible gap, never zero or filled in`() {
+        val lines = coverageLines(
+            estimatePct = 65,
+            samCoverage = null,
+            modelsUsed = "muse-spark only (timeout)",
+            isDemo = false
+        )
+        assertEquals("SAM: —", lines.sam)
+        assertEquals("Spark estimate: 65%", lines.estimate)
+    }
+
+    @Test
+    fun `Gemini estimate carries the Gemini label`() {
+        val lines = coverageLines(
+            estimatePct = 60,
+            samCoverage = null,
+            modelsUsed = "gemini",
+            isDemo = false
+        )
+        assertEquals("SAM: —", lines.sam)
+        assertEquals("Gemini estimate: 60%", lines.estimate)
+    }
+
+    @Test
+    fun `demo rows keep demo labels`() {
+        val lines = coverageLines(
+            estimatePct = 65,
+            samCoverage = 31,
+            modelsUsed = "demo",
+            isDemo = true
+        )
+        assertEquals("Demo-measured coverage: 31%", lines.sam)
+        assertEquals("Demo estimate: 65%", lines.estimate)
+    }
+
+    @Test
+    fun `pre-trace rows show a neutral estimate with a SAM gap`() {
+        val lines = coverageLines(
+            estimatePct = 65,
+            samCoverage = null,
+            modelsUsed = null,
+            isDemo = false
+        )
+        assertEquals("SAM: —", lines.sam)
+        assertEquals("Estimate: 65%", lines.estimate)
+    }
 }

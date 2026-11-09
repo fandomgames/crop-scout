@@ -78,6 +78,37 @@ fun AnalysisResult.verdictTrace(): VerdictTrace =
     VerdictTrace(modelsUsed, samCoverage, scannedAtEpochMs, imageHash)
 
 /**
+ * Method-labelled coverage lines for the verdict card and history rows: a
+ * SAM measurement and an analyzer estimate are never mixed under one
+ * "Coverage" label. A null SAM measurement renders as "SAM: —" — visibly
+ * missing, never filled in, never 0% — so a failed SAM reads as a gap in
+ * the history SAM series, not as a bare tray.
+ */
+data class CoverageLines(val sam: String, val estimate: String)
+
+fun coverageLines(
+    estimatePct: Int,
+    samCoverage: Int?,
+    modelsUsed: String?,
+    isDemo: Boolean
+): CoverageLines {
+    val demo = isDemo || modelsUsed == "demo"
+    val sam = when {
+        samCoverage == null && demo -> "Demo: —"
+        samCoverage == null -> "SAM: —"
+        demo -> "Demo-measured coverage: $samCoverage%"
+        else -> "SAM: $samCoverage%"
+    }
+    val estimate = when {
+        demo -> "Demo estimate: $estimatePct%"
+        modelsUsed?.contains("muse-spark") == true -> "Spark estimate: $estimatePct%"
+        modelsUsed == "gemini" -> "Gemini estimate: $estimatePct%"
+        else -> "Estimate: $estimatePct%"
+    }
+    return CoverageLines(sam, estimate)
+}
+
+/**
  * Card-tap toggle for the trace section: pinch expands in place,
  * pinch again collapses. Pure so the expand/collapse contract is
  * unit-tested; the card keeps the existing tap interaction.
