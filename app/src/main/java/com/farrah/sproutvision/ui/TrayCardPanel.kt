@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -18,9 +20,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -66,7 +71,11 @@ fun TrayCardRoute(vm: SproutViewModel, trayId: Long) {
             latestPhotoPath = latestScanPhoto(records),
             onToggleExpand = { vm.toggleCardExpanded(trayId) },
             onScan = { vm.openTrayScan(trayId) },
-            onDrop = { vm.dropCardTrayId = trayId }
+            onDrop = { vm.dropCardTrayId = trayId },
+            onRemove = {
+                vm.clearTrayAnchor(trayId)
+                if (vm.expandedCardTrayId == trayId) vm.toggleCardExpanded(trayId)
+            }
         )
     }
 }
@@ -80,6 +89,7 @@ fun TrayCardPanel(
     onToggleExpand: () -> Unit,
     onScan: () -> Unit,
     onDrop: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Ghosts are translucent; tapping one drops it in place, grabbing moves it.
@@ -91,7 +101,7 @@ fun TrayCardPanel(
         if (ghost) {
             GhostBody(tray)
         } else if (expanded) {
-            ExpandedBody(tray, latestPhotoPath, onToggleExpand, onScan)
+            ExpandedBody(tray, latestPhotoPath, onToggleExpand, onScan, onRemove)
         } else {
             CompactBody(tray)
         }
@@ -142,8 +152,10 @@ private fun ExpandedBody(
     tray: TrayEntity,
     latestPhotoPath: String?,
     onCollapse: () -> Unit,
-    onScan: () -> Unit
+    onScan: () -> Unit,
+    onRemove: () -> Unit
 ) {
+    var showRemoveConfirm by remember(tray.id) { mutableStateOf(false) }
     val day = remember(tray.id, tray.seededAtEpochMs) { daysSince(tray.seededAtEpochMs) }
     val expected = tray.expectedDaysToHarvest
     val harvestAt = expected?.let { tray.seededAtEpochMs + it * MILLIS_PER_DAY }
@@ -156,7 +168,10 @@ private fun ExpandedBody(
         tray.lastIssues.split(";").map { it.trim() }.filter { it.isNotBlank() }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -216,12 +231,48 @@ private fun ExpandedBody(
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
         Button(
             onClick = onScan,
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
             Text("Scan this tray", fontSize = 18.sp)
+        }
+        // Single confirm mirroring the detail screen and the label panel:
+        // Cancel/Keep or Remove, swapped into the button's spot so it
+        // can't land off-panel. Clears only the anchor — the tray, its
+        // scans, and its history stay.
+        if (showRemoveConfirm) {
+            Spacer(Modifier.height(8.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "Remove ${tray.name}'s card?",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        "Unpins the floating card. The tray and its " +
+                            "history stay — place it again anytime.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showRemoveConfirm = false }) {
+                            Text("Keep card")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            onClick = { showRemoveConfirm = false; onRemove() }
+                        ) {
+                            Text("Remove", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        } else {
+            TextButton(onClick = { showRemoveConfirm = true }) {
+                Text("Remove card", color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }
