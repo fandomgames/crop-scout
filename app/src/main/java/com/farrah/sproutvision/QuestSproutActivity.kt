@@ -999,7 +999,11 @@ class QuestSproutActivity : AppSystemActivity() {
                 settingsCreator = {
                     UIPanelSettings(
                         shape = QuadShapeOptions(width = 0.50f, height = 0.36f),
-                        display = DpDisplayOptions(width = 500f, height = 360f)
+                        display = DpDisplayOptions(width = 500f, height = 360f),
+                        // Mesh, not the Layer default: tray cards are
+                        // unbounded, and every layer spends one of the 16
+                        // compositor layers (see runtimeCardRenderOptions).
+                        rendering = runtimeCardRenderOptions()
                     )
                 }
             )
@@ -1122,7 +1126,11 @@ class QuestSproutActivity : AppSystemActivity() {
                 settingsCreator = {
                     UIPanelSettings(
                         shape = QuadShapeOptions(width = 0.40f, height = 0.30f),
-                        display = DpDisplayOptions(width = 400f, height = 300f)
+                        display = DpDisplayOptions(width = 400f, height = 300f),
+                        // Mesh, not the Layer default: labels are
+                        // unbounded, and every layer spends one of the 16
+                        // compositor layers (see runtimeCardRenderOptions).
+                        rendering = runtimeCardRenderOptions()
                     )
                 }
             )
@@ -1494,6 +1502,31 @@ internal fun currentPanelVis(
         )
     )
 }
+
+/**
+ * Horizon OS compositor budget: at most 16 layers per frame app-wide
+ * (Meta docs, "Compositor layers"); layers past the budget are not
+ * rendered. Every panel on [PanelRenderMode.Layer] spends one.
+ */
+internal const val COMPOSITOR_LAYER_BUDGET = 16
+
+/**
+ * Render options for the unbounded runtime panels (tray cards, ID labels).
+ * Pinned by PanelLayerBudgetTest: mesh, never the Layer default, so
+ * pinning the 13th label cannot spend a 17th compositor layer.
+ */
+internal fun runtimeCardRenderOptions(): UIPanelRenderOptions =
+    UIPanelRenderOptions(PanelRenderMode.Mesh())
+
+/**
+ * Co-visible compositor layers for a visibility snapshot. Only the five
+ * static registerPanels() panels can ever be layers (HUD, compact HUD,
+ * viewfinder, manage, tripwire); runtime cards/labels are meshes and
+ * are never counted here.
+ */
+internal fun layerPanelCount(vis: PanelVis): Int =
+    listOf(vis.hud, vis.hudCompact, vis.manage, vis.tripwire, vis.viewfinder)
+        .count { it }
 
 /** Resumable UI state carried across an auto-recreate (same process). */
 internal data class SavedUiState(
