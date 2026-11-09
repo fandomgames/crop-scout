@@ -77,6 +77,8 @@ fun ManageNav(vm: SproutViewModel) {
             onNutrients = { screen = ManageScreen.Nutrients },
             placementMode = vm.placementMode,
             onTogglePlacement = { vm.placementMode = !vm.placementMode },
+            labelsVisible = settings.labelsVisible,
+            onToggleLabels = { vm.toggleLabelsVisible() },
             onExportHistory = {
                 scope.launch {
                     val outcome = vm.exportScanHistory(context)

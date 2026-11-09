@@ -3,6 +3,7 @@ package com.farrah.sproutvision.data
 import com.farrah.sproutvision.analyze.IdentifyConfidence
 import com.farrah.sproutvision.analyze.PlantCareSheet
 import com.farrah.sproutvision.analyze.PlantIdentification
+import com.farrah.sproutvision.settings.AppSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -149,12 +150,27 @@ class IdLabelTest {
 
     @Test
     fun `anchored labels render, ghosts only while placing, clean hides all`() {
-        assertTrue(idLabelVisible(hasAnchor = true, placingThis = false, cleanMode = false))
-        assertTrue(idLabelVisible(hasAnchor = true, placingThis = true, cleanMode = false))
-        assertTrue(idLabelVisible(hasAnchor = false, placingThis = true, cleanMode = false))
-        assertFalse(idLabelVisible(hasAnchor = false, placingThis = false, cleanMode = false))
-        assertFalse(idLabelVisible(hasAnchor = true, placingThis = false, cleanMode = true))
-        assertFalse(idLabelVisible(hasAnchor = false, placingThis = true, cleanMode = true))
+        assertTrue(idLabelVisible(true, placingThis = false, cleanMode = false, labelsVisible = true))
+        assertTrue(idLabelVisible(true, placingThis = true, cleanMode = false, labelsVisible = true))
+        assertTrue(idLabelVisible(false, placingThis = true, cleanMode = false, labelsVisible = true))
+        assertFalse(idLabelVisible(false, placingThis = false, cleanMode = false, labelsVisible = true))
+        assertFalse(idLabelVisible(true, placingThis = false, cleanMode = true, labelsVisible = true))
+        assertFalse(idLabelVisible(false, placingThis = true, cleanMode = true, labelsVisible = true))
+    }
+
+    @Test
+    fun `hide-all hides anchored labels and ghosts without deleting them`() {
+        // Every visible combination goes dark under the toggle; the
+        // toggle gates visibility only — anchors are untouched.
+        assertFalse(idLabelVisible(true, placingThis = false, cleanMode = false, labelsVisible = false))
+        assertFalse(idLabelVisible(true, placingThis = true, cleanMode = false, labelsVisible = false))
+        assertFalse(idLabelVisible(false, placingThis = true, cleanMode = false, labelsVisible = false))
+        assertFalse(idLabelVisible(false, placingThis = false, cleanMode = false, labelsVisible = false))
+    }
+
+    @Test
+    fun `labels are visible by default until first hidden`() {
+        assertTrue(AppSettings().labelsVisible)
     }
 
     @Test
@@ -232,12 +248,12 @@ class IdLabelTest {
         repository.clearHerbariumAnchor(entryId)
 
         val unpinned = dao.getHerbariumOnce().single { it.id == entryId }
-        assertFalse(idLabelVisible(unpinned.hasAnchor(), placingThis = false, cleanMode = false))
+        assertFalse(idLabelVisible(unpinned.hasAnchor(), placingThis = false, cleanMode = false, labelsVisible = true))
 
         repository.setHerbariumAnchor(entryId, 4f, 5f, 6f)
         val repinned = dao.getHerbariumOnce().single { it.id == entryId }
         assertTrue(repinned.hasAnchor())
-        assertTrue(idLabelVisible(repinned.hasAnchor(), placingThis = false, cleanMode = false))
+        assertTrue(idLabelVisible(repinned.hasAnchor(), placingThis = false, cleanMode = false, labelsVisible = true))
     }
 
     @Test

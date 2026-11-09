@@ -192,6 +192,13 @@ class QuestSproutActivity : AppSystemActivity() {
         var wasGrabbed: Boolean = false
     )
     private val idLabels = ConcurrentHashMap<Long, IdLabel>()
+    /** One label-sync emission: entries plus the flags that gate visibility. */
+    private data class LabelSync(
+        val entries: List<HerbariumEntity>,
+        val placingId: Long?,
+        val clean: Boolean,
+        val labelsVisible: Boolean
+    )
     // Runtime panel ids: 1e9 (0x3B9ACA00) can never collide with aapt ids,
     // which always carry the 0x7F package prefix.
     private var nextCardPanelId = 1_000_000_000
@@ -651,11 +658,13 @@ class QuestSproutActivity : AppSystemActivity() {
             combine(
                 vm.herbarium,
                 snapshotFlow { vm.labelPlacementEntryId },
-                snapshotFlow { vm.cleanMode }
-            ) { entries, placingId, clean -> Triple(entries, placingId, clean) }
-                .collect { (entries, placingId, clean) ->
-                    syncIdLabels(entries, placingId, clean)
-                }
+                snapshotFlow { vm.cleanMode },
+                vm.settings
+            ) { entries, placingId, clean, settings ->
+                LabelSync(entries, placingId, clean, settings.labelsVisible)
+            }.collect { sync ->
+                syncIdLabels(sync.entries, sync.placingId, sync.clean, sync.labelsVisible)
+            }
         }
         sceneEntitiesCreated = true
     }
@@ -813,7 +822,12 @@ class QuestSproutActivity : AppSystemActivity() {
             WakeLog.log(this, "recreate traySync FAILED ${e.message}")
         }
         try {
-            syncIdLabels(vm.herbarium.value, vm.labelPlacementEntryId, vm.cleanMode)
+            syncIdLabels(
+                vm.herbarium.value,
+                vm.labelPlacementEntryId,
+                vm.cleanMode,
+                vm.settings.value.labelsVisible
+            )
         } catch (e: Exception) {
             Log.e(TAG, "ID label restore failed", e)
             WakeLog.log(this, "recreate labelSync FAILED ${e.message}")
@@ -1034,7 +1048,12 @@ class QuestSproutActivity : AppSystemActivity() {
      * entry being pinned shows a ghost; anchored labels render at their
      * saved anchors, so they stay put as the grower walks the rack.
      */
-    private fun syncIdLabels(entries: List<HerbariumEntity>, placingId: Long?, clean: Boolean) {
+    private fun syncIdLabels(
+        entries: List<HerbariumEntity>,
+        placingId: Long?,
+        clean: Boolean,
+        labelsVisible: Boolean
+    ) {
         try {
             idLabels.keys
                 .filter { id -> entries.none { it.id == id } }
@@ -1056,7 +1075,7 @@ class QuestSproutActivity : AppSystemActivity() {
         }
         for (entry in entries) {
             try {
-                syncOneIdLabel(entry, placingId == entry.id, clean)
+                syncOneIdLabel(entry, placingId == entry.id, clean, labelsVisible)
             } catch (e: Exception) {
                 Log.e(TAG, "syncing ID label ${entry.id} failed", e)
             }
@@ -1064,11 +1083,16 @@ class QuestSproutActivity : AppSystemActivity() {
     }
 
     /** Creates-on-demand and syncs one entry's floating ID label. See [syncIdLabels]. */
-    private fun syncOneIdLabel(entry: HerbariumEntity, placingThis: Boolean, clean: Boolean) {
+    private fun syncOneIdLabel(
+        entry: HerbariumEntity,
+        placingThis: Boolean,
+        clean: Boolean,
+        labelsVisible: Boolean
+    ) {
         val label = idLabels.getOrPut(entry.id) { createIdLabel(entry.id) }
         label.anchored = entry.hasAnchor()
         label.entity.setComponent(
-            Visible(idLabelVisible(label.anchored, placingThis, clean))
+            Visible(idLabelVisible(label.anchored, placingThis, clean, labelsVisible))
         )
         // Labels stay grabbable like tray cards — grab to move anytime
         // (the release tick saves the pose); Pin mode only adds the ghost.

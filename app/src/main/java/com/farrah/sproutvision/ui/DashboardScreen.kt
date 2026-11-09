@@ -53,6 +53,8 @@ fun DashboardScreen(
     onExportHistory: () -> Unit,
     placementMode: Boolean,
     onTogglePlacement: () -> Unit,
+    labelsVisible: Boolean,
+    onToggleLabels: () -> Unit,
     onClose: () -> Unit
 ) {
     Scaffold(
@@ -138,6 +140,12 @@ fun DashboardScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(if (placementMode) "Done placing" else "Place tray cards")
+                        }
+                        OutlinedButton(
+                            onClick = onToggleLabels,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (labelsVisible) "Hide labels" else "Show labels")
                         }
                     }
                 }

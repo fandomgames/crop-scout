@@ -41,11 +41,16 @@ fun shortScientificName(scientificName: String): String {
 
 /**
  * Whether an ID label's floating panel is shown: anchored labels always
- * (except in clean mode); the entry being pinned shows its ghost only
- * while its placement is active.
+ * (except in clean mode, or when the Manage hide-all toggle is off); the
+ * entry being pinned shows its ghost only while its placement is active.
+ * Hiding never deletes the label or its anchor — visibility only.
  */
-fun idLabelVisible(hasAnchor: Boolean, placingThis: Boolean, cleanMode: Boolean): Boolean =
-    !cleanMode && (hasAnchor || placingThis)
+fun idLabelVisible(
+    hasAnchor: Boolean,
+    placingThis: Boolean,
+    cleanMode: Boolean,
+    labelsVisible: Boolean
+): Boolean = labelsVisible && !cleanMode && (hasAnchor || placingThis)
 
 /** Tap-to-expand toggle for the floating label (tap again to collapse). */
 fun nextExpandedLabel(currentExpandedId: Long?, tappedId: Long): Long? =

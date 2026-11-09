@@ -35,6 +35,8 @@ data class AppSettings(
     val scanChime: Boolean = true,
     /** Vertical video mode: compact world-locked HUD for 9:16 capture. */
     val verticalVideo: Boolean = false,
+    /** Hide-all for herbarium labels (Manage toggle). Persisted: hiding survives reopen. */
+    val labelsVisible: Boolean = true,
     /** Recent successful demo-analysis durations (typical-time estimate). */
     val recentDemoMs: List<Long> = emptyList(),
     /** Recent successful Gemini-analysis durations (typical-time estimate). */
@@ -62,6 +64,7 @@ class SettingsStore(private val context: Context) {
     private val keyVoiceReadout = booleanPreferencesKey("voice_readout")
     private val keyScanChime = booleanPreferencesKey("scan_chime")
     private val keyVerticalVideo = booleanPreferencesKey("vertical_video")
+    private val keyLabelsVisible = booleanPreferencesKey("labels_visible")
     private val keyRecentDemoMs = stringPreferencesKey("recent_demo_ms")
     private val keyRecentGeminiMs = stringPreferencesKey("recent_gemini_ms")
     private val keyCustomVarieties = stringPreferencesKey("custom_varieties")
@@ -82,6 +85,7 @@ class SettingsStore(private val context: Context) {
             voiceReadout = prefs[keyVoiceReadout] ?: true,
             scanChime = prefs[keyScanChime] ?: true,
             verticalVideo = prefs[keyVerticalVideo] ?: false,
+            labelsVisible = prefs[keyLabelsVisible] ?: true,
             recentDemoMs = parseMsList(prefs[keyRecentDemoMs]),
             recentGeminiMs = parseMsList(prefs[keyRecentGeminiMs]),
             customVarieties = parseCustomVarieties(prefs[keyCustomVarieties]),
@@ -130,6 +134,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setVerticalVideo(enabled: Boolean) {
         context.dataStore.edit { it[keyVerticalVideo] = enabled }
+    }
+
+    suspend fun setLabelsVisible(visible: Boolean) {
+        context.dataStore.edit { it[keyLabelsVisible] = visible }
     }
 
     suspend fun setRecentDemoMs(values: List<Long>) {

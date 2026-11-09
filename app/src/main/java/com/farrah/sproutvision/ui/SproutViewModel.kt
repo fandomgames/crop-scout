@@ -412,6 +412,20 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Flips the Manage hide-all-labels toggle from the persisted value,
+     * serialized like [toggleVerticalVideo] so rapid taps can't race.
+     * Hiding never deletes labels or anchors — it only hides them in-view.
+     */
+    fun toggleLabelsVisible() {
+        viewModelScope.launch {
+            labelsToggleMutex.withLock {
+                val current = settingsStore.settings.first().labelsVisible
+                settingsStore.setLabelsVisible(!current)
+            }
+        }
+    }
+
     fun setNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsStore.setNotificationsEnabled(enabled)
@@ -428,6 +442,8 @@ class SproutViewModel(application: Application) : AndroidViewModel(application) 
     private var lastCountedScanStamp: Long? = null
     /** Serializes 9:16 toggle flips so rapid taps can't race. */
     private val verticalToggleMutex = Mutex()
+    /** Serializes hide-all-labels flips so rapid taps can't race. */
+    private val labelsToggleMutex = Mutex()
 
     /** Cancels an in-flight analysis (a no-op when idle). */
     fun cancelAnalyze() {
